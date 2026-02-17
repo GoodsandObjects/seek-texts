@@ -1,0 +1,31 @@
+{
+  "scriptureId": "bible-kjv",
+  "bookId": "psalms",
+  "chapter": 126,
+  "verses": [
+    {
+      "number": 1,
+      "text": "When the LORD turned again the captivity of Zion, we were like them that dream."
+    },
+    {
+      "number": 2,
+      "text": "Then was our mouth filled with laughter, and our tongue with singing: then said they among the heathen, The LORD hath done great things for them."
+    },
+    {
+      "number": 3,
+      "text": "The LORD hath done great things for us; whereof we are glad."
+    },
+    {
+      "number": 4,
+      "text": "Turn again our captivity, O LORD, as the streams in the south."
+    },
+    {
+      "number": 5,
+      "text": "They that sow in tears shall reap in joy."
+    },
+    {
+      "number": 6,
+      "text": "He that goeth forth and weepeth, bearing precious seed, shall doubtless come again with rejoicing, bringing his sheaves with him."
+    }
+  ]
+}

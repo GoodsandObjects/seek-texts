@@ -1,0 +1,31 @@
+{
+  "scriptureId": "tanakh-jps",
+  "bookId": "psalms",
+  "chapter": 150,
+  "verses": [
+    {
+      "number": 1,
+      "text": "Hallelujah. Praise God in His sanctuary; Praise Him in the firmament of His power."
+    },
+    {
+      "number": 2,
+      "text": "Praise Him for His mighty acts; Praise Him according to His abundant greatness."
+    },
+    {
+      "number": 3,
+      "text": "Praise Him with the blast of the horn; Praise Him with the psaltery and harp."
+    },
+    {
+      "number": 4,
+      "text": "Praise Him with the timbrel and dance; Praise Him with stringed instruments and the pipe."
+    },
+    {
+      "number": 5,
+      "text": "Praise Him with the loud-sounding cymbals; Praise Him with the clanging cymbals."
+    },
+    {
+      "number": 6,
+      "text": "Let every thing that hath breath praise the LORD. Hallelujah."
+    }
+  ]
+}

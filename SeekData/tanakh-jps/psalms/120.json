@@ -1,0 +1,35 @@
+{
+  "scriptureId": "tanakh-jps",
+  "bookId": "psalms",
+  "chapter": 120,
+  "verses": [
+    {
+      "number": 1,
+      "text": "A Song of Ascents. In my distress I called unto the LORD, And He answered me."
+    },
+    {
+      "number": 2,
+      "text": "O LORD, deliver my soul from lying lips, From a deceitful tongue."
+    },
+    {
+      "number": 3,
+      "text": "What shall be given unto thee, and what shall be done more unto thee, Thou deceitful tongue?"
+    },
+    {
+      "number": 4,
+      "text": "Sharp arrows of the mighty, With coals of broom."
+    },
+    {
+      "number": 5,
+      "text": "Woe is me, that I sojourn with Meshech, That I dwell beside the tents of Kedar!"
+    },
+    {
+      "number": 6,
+      "text": "My soul hath full long had her dwelling With him that hateth peace."
+    },
+    {
+      "number": 7,
+      "text": "I am all peace; But when I speak, they are for war."
+    }
+  ]
+}

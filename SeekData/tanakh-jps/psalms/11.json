@@ -1,0 +1,35 @@
+{
+  "scriptureId": "tanakh-jps",
+  "bookId": "psalms",
+  "chapter": 11,
+  "verses": [
+    {
+      "number": 1,
+      "text": "For the Leader. [A Psalm] of David. In the LORD have I taken refuge; how say ye to my soul: 'Flee thou! to your mountain, ye birds'?"
+    },
+    {
+      "number": 2,
+      "text": "For, lo, the wicked bend the bow, they have made ready their arrow upon the string, that they may shoot in darkness at the upright in heart."
+    },
+    {
+      "number": 3,
+      "text": "When the foundations are destroyed, what hath the righteous wrought?"
+    },
+    {
+      "number": 4,
+      "text": "The LORD is in His holy temple, the LORD, His throne is in heaven; His eyes behold, His eyelids try, the children of men."
+    },
+    {
+      "number": 5,
+      "text": "The LORD trieth the righteous; but the wicked and him that loveth violence His soul hateth."
+    },
+    {
+      "number": 6,
+      "text": "Upon the wicked He will cause to rain coals; fire and brimstone and burning wind shall be the portion of their cup."
+    },
+    {
+      "number": 7,
+      "text": "For the LORD is righteous, He loveth righteousness; the upright shall behold His face."
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "scriptureId": "quran",
+  "bookId": "al-ikhlaas",
+  "chapter": 112,
+  "verses": [
+    {
+      "number": 1,
+      "text": "Say: He is Allah, the One!"
+    },
+    {
+      "number": 2,
+      "text": "Allah, the eternally Besought of all!"
+    },
+    {
+      "number": 3,
+      "text": "He begetteth not nor was begotten."
+    },
+    {
+      "number": 4,
+      "text": "And there is none comparable unto Him."
+    }
+  ]
+}

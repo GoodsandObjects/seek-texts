@@ -1,0 +1,27 @@
+{
+  "scriptureId": "tanakh-jps",
+  "bookId": "psalms",
+  "chapter": 100,
+  "verses": [
+    {
+      "number": 1,
+      "text": "A Psalm of thanksgiving. Shout unto the LORD, all the earth."
+    },
+    {
+      "number": 2,
+      "text": "Serve the LORD with gladness; come before His presence with singing."
+    },
+    {
+      "number": 3,
+      "text": "Know ye that the LORD He is God; it is He that hath made us, and we are His, His people, and the flock of His pasture."
+    },
+    {
+      "number": 4,
+      "text": "Enter into His gates with thanksgiving, and into His courts with praise; give thanks unto Him, and bless His name."
+    },
+    {
+      "number": 5,
+      "text": "For the LORD is good; His mercy endureth for ever; and His faithfulness unto all generations."
+    }
+  ]
+}
