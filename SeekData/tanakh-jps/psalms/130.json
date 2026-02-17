@@ -1,0 +1,39 @@
+{
+  "scriptureId": "tanakh-jps",
+  "bookId": "psalms",
+  "chapter": 130,
+  "verses": [
+    {
+      "number": 1,
+      "text": "A Song of Ascents. Out of the depths have I called Thee, O LORD."
+    },
+    {
+      "number": 2,
+      "text": "Lord, hearken unto my voice; let Thine ears be attentive to the voice of my supplications."
+    },
+    {
+      "number": 3,
+      "text": "If Thou, LORD, shouldest mark iniquities, O Lord, who could stand?"
+    },
+    {
+      "number": 4,
+      "text": "For with Thee there is forgiveness, that Thou mayest be feared."
+    },
+    {
+      "number": 5,
+      "text": "I wait for the LORD, my soul doth wait, and in His word do I hope."
+    },
+    {
+      "number": 6,
+      "text": "My soul waiteth for the Lord, more than watchmen for the morning; yea, more than watchmen for the morning."
+    },
+    {
+      "number": 7,
+      "text": "O Israel, hope in the LORD; for with the LORD there is mercy, and with Him is plenteous redemption."
+    },
+    {
+      "number": 8,
+      "text": "And He will redeem Israel from all his iniquities."
+    }
+  ]
+}
