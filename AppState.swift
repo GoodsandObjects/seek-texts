@@ -44,6 +44,66 @@ struct SelectedPassage: Equatable {
     var verseRange: ClosedRange<Int>?
 }
 
+// MARK: - Last Reading State
+
+struct LastReadingState: Codable, Equatable, Identifiable {
+    let scriptureId: String?
+    let bookId: String
+    let chapter: Int
+    let verseStart: Int?
+    let verseEnd: Int?
+    let timestamp: Date
+
+    var id: String {
+        "\(scriptureId ?? "unknown")-\(bookId)-\(chapter)-\(verseStart ?? 0)-\(verseEnd ?? 0)"
+    }
+}
+
+struct ReaderDestination: Hashable, Codable {
+    let scriptureId: String
+    let bookId: String
+    let chapter: Int
+    let bookName: String
+    let verseStart: Int?
+    let verseEnd: Int?
+
+    init(
+        scriptureId: String,
+        bookId: String,
+        chapter: Int,
+        bookName: String,
+        verseStart: Int? = nil,
+        verseEnd: Int? = nil
+    ) {
+        self.scriptureId = scriptureId
+        self.bookId = bookId
+        self.chapter = chapter
+        self.bookName = bookName
+        self.verseStart = verseStart
+        self.verseEnd = verseEnd
+    }
+}
+
+enum AppRoute: Hashable {
+    case reader(ReaderDestination)
+    case guidedStudy(conversationId: UUID)
+    case error(title: String, message: String)
+}
+
+enum LastReadingStore {
+    private static let key = "seek_last_reading_state_v1"
+
+    static func saveLastReadingState(_ state: LastReadingState) {
+        guard let encoded = try? JSONEncoder().encode(state) else { return }
+        UserDefaults.standard.set(encoded, forKey: key)
+    }
+
+    static func loadLastReadingState() -> LastReadingState? {
+        guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
+        return try? JSONDecoder().decode(LastReadingState.self, from: data)
+    }
+}
+
 // MARK: - Guided Session Models
 
 struct GuidedSessionMessage: Identifiable, Codable, Equatable {
@@ -194,6 +254,10 @@ class AppState: ObservableObject {
     @Published var guidedStudyLastUsedDate: String = ""
     @Published var guidedSandboxMode: Bool = false
     @Published var selectedPassage: SelectedPassage?
+    @Published var isPaywallPresented: Bool = false
+    @Published var paywallContext: PaywallContext? = nil
+
+    private var paywallUnlockAction: (() -> Void)?
 
     private let highlightsKey = "seek_highlights"
     private let notesKey = "seek_notes"
@@ -203,9 +267,9 @@ class AppState: ObservableObject {
     private let guidedDateKey = "seek_guided_date"
     private let sandboxKey = "seek_guided_sandbox"
 
-    static let maxHighlightsFree = 5
-    static let maxNotesFree = 3
-    static let maxGuidedStudyFree = 1
+    static let maxHighlightsFree = 18
+    static let maxNotesFree = 7
+    static let maxGuidedStudyFree = 3
 
     init() {
         loadPersistedData()
@@ -254,6 +318,7 @@ class AppState: ObservableObject {
     func setSandboxMode(_ enabled: Bool) {
         guidedSandboxMode = enabled
         UserDefaults.standard.set(enabled, forKey: sandboxKey)
+        EntitlementManager.shared.applySandboxOverrideIfNeeded()
     }
 
     var effectivelyGuided: Bool {
@@ -326,6 +391,7 @@ class AppState: ObservableObject {
             journeyRecords.removeAll { $0.verseId == id && $0.type == .highlight }
         } else {
             highlights.insert(id)
+            StreakManager.shared.recordHighlightCreation()
             if let ref = reference, let text = verseText {
                 let record = JourneyRecord(
                     verseId: id,
@@ -347,6 +413,9 @@ class AppState: ObservableObject {
             notes.removeValue(forKey: id)
             journeyRecords.removeAll { $0.verseId == id && $0.type == .note }
         } else {
+            if notes[id] == nil {
+                StreakManager.shared.recordNoteCreation()
+            }
             notes[id] = text
             if let existingIndex = journeyRecords.firstIndex(where: { $0.verseId == id && $0.type == .note }) {
                 journeyRecords[existingIndex].noteText = text
@@ -395,11 +464,11 @@ class AppState: ObservableObject {
     }
 
     func canAddHighlight() -> Bool {
-        effectivelyGuided || highlights.count < Self.maxHighlightsFree
+        UsageLimitManager.shared.canPerform(.saveHighlight)
     }
 
     func canAddNote() -> Bool {
-        effectivelyGuided || notes.count < Self.maxNotesFree
+        UsageLimitManager.shared.canPerform(.saveNote)
     }
 
     func canUseGuidedStudy() -> Bool {
@@ -417,5 +486,26 @@ class AppState: ObservableObject {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: Date())
+    }
+
+    func presentPaywall(_ context: PaywallContext, onUnlock: (() -> Void)? = nil) {
+        guard !EntitlementManager.shared.isPremium else {
+            onUnlock?()
+            return
+        }
+        paywallContext = context
+        paywallUnlockAction = onUnlock
+        isPaywallPresented = true
+    }
+
+    func handlePaywallUnlocked() {
+        paywallUnlockAction?()
+        paywallUnlockAction = nil
+        isPaywallPresented = false
+    }
+
+    func dismissPaywall() {
+        paywallUnlockAction = nil
+        isPaywallPresented = false
     }
 }

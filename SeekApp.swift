@@ -16,6 +16,7 @@ struct SeekApp: App {
             ContentView()
                 .environmentObject(appState)
                 .task {
+                    await StoreManager.shared.configure()
                     await LibraryData.shared.bootstrapIfNeeded()
                     await RemoteDataService.shared.logBundleStartupVerification()
                     _ = await RemoteDataService.shared.prefetchTopFiveIfEligible()

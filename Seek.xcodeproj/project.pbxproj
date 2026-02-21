@@ -22,15 +22,43 @@
 		B9D9830C2F2881A1000C601C /* VerseLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9D9830B2F28819E000C601C /* VerseLoader.swift */; };
 		B9NEW0012F3AAA010000001 /* SearchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9NEW0012F3AAA010000002 /* SearchManager.swift */; };
 		B9NEW0022F3AAA010000001 /* ShareImageGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9NEW0022F3AAA010000002 /* ShareImageGenerator.swift */; };
+		B9SHR0012F3AAA010000001 /* ShareCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9SHR0012F3AAA010000002 /* ShareCardView.swift */; };
+		B9SHR0022F3AAA010000001 /* ShareManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9SHR0022F3AAA010000002 /* ShareManager.swift */; };
+		B9SHR0032F3AAA010000001 /* StreakShareCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9SHR0032F3AAA010000002 /* StreakShareCardView.swift */; };
 		B9NEW0032F3AAA010000001 /* GuidedStudyScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9NEW0032F3AAA010000002 /* GuidedStudyScreen.swift */; };
 		B9NEW0042F3AAA010000001 /* JourneyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9NEW0042F3AAA010000002 /* JourneyStore.swift */; };
 		B9RDS00012F3BBB010000001 /* RemoteDataService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9RDS00012F3BBB010000002 /* RemoteDataService.swift */; };
 		B9RCF00012F3BBB010000001 /* RemoteConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9RCF00012F3BBB010000002 /* RemoteConfig.swift */; };
 		B9OAI0012F3BBB010000001 /* OpenAIProxyClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9OAI0012F3BBB010000002 /* OpenAIProxyClient.swift */; };
 		B9STUDY012F3BBB010000001 /* StudyHomeScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9STUDY012F3BBB010000002 /* StudyHomeScreen.swift */; };
-		B9GPS0012F3BBB010000001 /* GuidedPassagePickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9GPS0012F3BBB010000002 /* GuidedPassagePickerSheet.swift */; };
-		B9GSM0012F3BBB010000001 /* GuidedSearchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9GSM0012F3BBB010000002 /* GuidedSearchManager.swift */; };
-		B9RDP0012F3BBB010000001 /* RemoteDatasetProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9RDP0012F3BBB010000002 /* RemoteDatasetProvider.swift */; };
+			B9GPS0012F3BBB010000001 /* GuidedPassagePickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9GPS0012F3BBB010000002 /* GuidedPassagePickerSheet.swift */; };
+			B9GSM0012F3BBB010000001 /* GuidedSearchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9GSM0012F3BBB010000002 /* GuidedSearchManager.swift */; };
+			B9GSH0012F3FFF010000001 /* GuidedStudyShareCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9GSH0012F3FFF010000002 /* GuidedStudyShareCardView.swift */; };
+			B9RDP0012F3BBB010000001 /* RemoteDatasetProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9RDP0012F3BBB010000002 /* RemoteDatasetProvider.swift */; };
+		B9STY0012F3BBB010000001 /* StudyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9STY0012F3BBB010000002 /* StudyStore.swift */; };
+		B9STRK0012F3BBB010000001 /* StreakState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9STRK0012F3BBB010000002 /* StreakState.swift */; };
+		B9STRK0022F3BBB010000001 /* StreakStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9STRK0022F3BBB010000002 /* StreakStore.swift */; };
+		B9STRK0032F3BBB010000001 /* StreakTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9STRK0032F3BBB010000002 /* StreakTracker.swift */; };
+		B9STRK0042F3BBB010000001 /* StreakManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9STRK0042F3BBB010000002 /* StreakManager.swift */; };
+		B9STRK0052F3BBB010000001 /* StreakMilestone.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9STRK0052F3BBB010000002 /* StreakMilestone.swift */; };
+		B9SUB00112F3BBB010000001 /* SubscriptionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9SUB00112F3BBB010000002 /* SubscriptionState.swift */; };
+		B9SUB00212F3BBB010000001 /* SubscriptionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9SUB00212F3BBB010000002 /* SubscriptionStore.swift */; };
+		B9SUB00312F3BBB010000001 /* EntitlementManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9SUB00312F3BBB010000002 /* EntitlementManager.swift */; };
+		B9SUB00412F3BBB010000001 /* FeatureGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9SUB00412F3BBB010000002 /* FeatureGate.swift */; };
+		B9SUB00512F3BBB010000001 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9SUB00512F3BBB010000002 /* AppSettings.swift */; };
+		B9SUB00612F3BBB010000001 /* StoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9SUB00612F3BBB010000002 /* StoreManager.swift */; };
+		B9USG00112F3BBB010000001 /* StudyUsageState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9USG00112F3BBB010000002 /* StudyUsageState.swift */; };
+		B9USG00212F3BBB010000001 /* StudyUsageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9USG00212F3BBB010000002 /* StudyUsageStore.swift */; };
+		B9USG00312F3BBB010000001 /* StudyUsageTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9USG00312F3BBB010000002 /* StudyUsageTracker.swift */; };
+		B9JRN0012F3CCC010000001 /* JourneyItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9JRN0012F3CCC010000002 /* JourneyItem.swift */; };
+		B9JRN0022F3CCC010000001 /* JourneyDayGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9JRN0022F3CCC010000002 /* JourneyDayGroup.swift */; };
+		B9JRN0032F3CCC010000001 /* JourneyDayHeaderRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9JRN0032F3CCC010000002 /* JourneyDayHeaderRow.swift */; };
+		B9JRN0042F3CCC010000001 /* JourneyStreakBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9JRN0042F3CCC010000002 /* JourneyStreakBarView.swift */; };
+		B9JRN0052F3CCC010000001 /* StreakInsightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9JRN0052F3CCC010000002 /* StreakInsightsView.swift */; };
+		B9PAY0012F3DDD010000001 /* PurchaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9PAY0012F3DDD010000002 /* PurchaseService.swift */; };
+		B9PAY0022F3DDD010000001 /* PaywallViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9PAY0022F3DDD010000002 /* PaywallViewModel.swift */; };
+		B9PAY0032F3DDD010000001 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9PAY0032F3DDD010000002 /* PaywallView.swift */; };
+		B9LIM0012F3EEE010000001 /* UsageLimitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9LIM0012F3EEE010000002 /* UsageLimitManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -50,15 +78,43 @@
 		B9D9830B2F28819E000C601C /* VerseLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerseLoader.swift; sourceTree = "<group>"; };
 		B9NEW0012F3AAA010000002 /* SearchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchManager.swift; sourceTree = "<group>"; };
 		B9NEW0022F3AAA010000002 /* ShareImageGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareImageGenerator.swift; sourceTree = "<group>"; };
+		B9SHR0012F3AAA010000002 /* ShareCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareCardView.swift; sourceTree = "<group>"; };
+		B9SHR0022F3AAA010000002 /* ShareManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareManager.swift; sourceTree = "<group>"; };
+		B9SHR0032F3AAA010000002 /* StreakShareCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreakShareCardView.swift; sourceTree = "<group>"; };
 		B9NEW0032F3AAA010000002 /* GuidedStudyScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidedStudyScreen.swift; sourceTree = "<group>"; };
 		B9NEW0042F3AAA010000002 /* JourneyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JourneyStore.swift; sourceTree = "<group>"; };
 		B9RDS00012F3BBB010000002 /* RemoteDataService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteDataService.swift; sourceTree = "<group>"; };
 		B9RCF00012F3BBB010000002 /* RemoteConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteConfig.swift; sourceTree = "<group>"; };
 		B9OAI0012F3BBB010000002 /* OpenAIProxyClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIProxyClient.swift; sourceTree = "<group>"; };
 		B9STUDY012F3BBB010000002 /* StudyHomeScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyHomeScreen.swift; sourceTree = "<group>"; };
-		B9GPS0012F3BBB010000002 /* GuidedPassagePickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidedPassagePickerSheet.swift; sourceTree = "<group>"; };
-		B9GSM0012F3BBB010000002 /* GuidedSearchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidedSearchManager.swift; sourceTree = "<group>"; };
-		B9RDP0012F3BBB010000002 /* RemoteDatasetProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteDatasetProvider.swift; sourceTree = "<group>"; };
+			B9GPS0012F3BBB010000002 /* GuidedPassagePickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidedPassagePickerSheet.swift; sourceTree = "<group>"; };
+			B9GSM0012F3BBB010000002 /* GuidedSearchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidedSearchManager.swift; sourceTree = "<group>"; };
+			B9GSH0012F3FFF010000002 /* GuidedStudyShareCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidedStudyShareCardView.swift; sourceTree = "<group>"; };
+			B9RDP0012F3BBB010000002 /* RemoteDatasetProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteDatasetProvider.swift; sourceTree = "<group>"; };
+		B9STY0012F3BBB010000002 /* StudyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyStore.swift; sourceTree = "<group>"; };
+		B9STRK0012F3BBB010000002 /* StreakState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreakState.swift; sourceTree = "<group>"; };
+		B9STRK0022F3BBB010000002 /* StreakStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreakStore.swift; sourceTree = "<group>"; };
+		B9STRK0032F3BBB010000002 /* StreakTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreakTracker.swift; sourceTree = "<group>"; };
+		B9STRK0042F3BBB010000002 /* StreakManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreakManager.swift; sourceTree = "<group>"; };
+		B9STRK0052F3BBB010000002 /* StreakMilestone.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreakMilestone.swift; sourceTree = "<group>"; };
+		B9SUB00112F3BBB010000002 /* SubscriptionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionState.swift; sourceTree = "<group>"; };
+		B9SUB00212F3BBB010000002 /* SubscriptionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionStore.swift; sourceTree = "<group>"; };
+		B9SUB00312F3BBB010000002 /* EntitlementManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntitlementManager.swift; sourceTree = "<group>"; };
+		B9SUB00412F3BBB010000002 /* FeatureGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureGate.swift; sourceTree = "<group>"; };
+		B9SUB00512F3BBB010000002 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		B9SUB00612F3BBB010000002 /* StoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreManager.swift; sourceTree = "<group>"; };
+		B9USG00112F3BBB010000002 /* StudyUsageState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyUsageState.swift; sourceTree = "<group>"; };
+		B9USG00212F3BBB010000002 /* StudyUsageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyUsageStore.swift; sourceTree = "<group>"; };
+		B9USG00312F3BBB010000002 /* StudyUsageTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyUsageTracker.swift; sourceTree = "<group>"; };
+		B9JRN0012F3CCC010000002 /* JourneyItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JourneyItem.swift; sourceTree = "<group>"; };
+		B9JRN0022F3CCC010000002 /* JourneyDayGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JourneyDayGroup.swift; sourceTree = "<group>"; };
+		B9JRN0032F3CCC010000002 /* JourneyDayHeaderRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JourneyDayHeaderRow.swift; sourceTree = "<group>"; };
+		B9JRN0042F3CCC010000002 /* JourneyStreakBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JourneyStreakBarView.swift; sourceTree = "<group>"; };
+		B9JRN0052F3CCC010000002 /* StreakInsightsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreakInsightsView.swift; sourceTree = "<group>"; };
+		B9PAY0012F3DDD010000002 /* PurchaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchaseService.swift; sourceTree = "<group>"; };
+		B9PAY0022F3DDD010000002 /* PaywallViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallViewModel.swift; sourceTree = "<group>"; };
+		B9PAY0032F3DDD010000002 /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
+		B9LIM0012F3EEE010000002 /* UsageLimitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageLimitManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -81,6 +137,11 @@
 				B949C0172F27FA42000A59E5 /* LibraryData.swift */,
 				B949C00D2F27EE77000A59E5 /* SettingsScreen.swift */,
 				B949C00B2F27EDA3000A59E5 /* JourneyScreen.swift */,
+				B9JRN0012F3CCC010000002 /* JourneyItem.swift */,
+				B9JRN0022F3CCC010000002 /* JourneyDayGroup.swift */,
+				B9JRN0032F3CCC010000002 /* JourneyDayHeaderRow.swift */,
+				B9JRN0042F3CCC010000002 /* JourneyStreakBarView.swift */,
+				B9JRN0052F3CCC010000002 /* StreakInsightsView.swift */,
 				B949C00F2F27EEA4000A59E5 /* AppState.swift */,
 				B949C0072F27E935000A59E5 /* LibraryScreen_New.swift */,
 				B95FF9702F2D4507003FE994 /* ReaderScreen.swift */,
@@ -90,17 +151,40 @@
 				B9D9830B2F28819E000C601C /* VerseLoader.swift */,
 				B9NEW0012F3AAA010000002 /* SearchManager.swift */,
 				B9NEW0022F3AAA010000002 /* ShareImageGenerator.swift */,
+				B9SHR0012F3AAA010000002 /* ShareCardView.swift */,
+				B9SHR0022F3AAA010000002 /* ShareManager.swift */,
+				B9SHR0032F3AAA010000002 /* StreakShareCardView.swift */,
 				B9NEW0032F3AAA010000002 /* GuidedStudyScreen.swift */,
 				B9NEW0042F3AAA010000002 /* JourneyStore.swift */,
 				B9RDS00012F3BBB010000002 /* RemoteDataService.swift */,
 				B9RDP0012F3BBB010000002 /* RemoteDatasetProvider.swift */,
+				B9STY0012F3BBB010000002 /* StudyStore.swift */,
+				B9STRK0012F3BBB010000002 /* StreakState.swift */,
+				B9STRK0022F3BBB010000002 /* StreakStore.swift */,
+				B9STRK0032F3BBB010000002 /* StreakTracker.swift */,
+				B9STRK0042F3BBB010000002 /* StreakManager.swift */,
+				B9STRK0052F3BBB010000002 /* StreakMilestone.swift */,
+				B9SUB00112F3BBB010000002 /* SubscriptionState.swift */,
+				B9SUB00212F3BBB010000002 /* SubscriptionStore.swift */,
+				B9SUB00312F3BBB010000002 /* EntitlementManager.swift */,
+				B9SUB00412F3BBB010000002 /* FeatureGate.swift */,
+				B9SUB00512F3BBB010000002 /* AppSettings.swift */,
+				B9SUB00612F3BBB010000002 /* StoreManager.swift */,
+				B9USG00112F3BBB010000002 /* StudyUsageState.swift */,
+				B9USG00212F3BBB010000002 /* StudyUsageStore.swift */,
+				B9USG00312F3BBB010000002 /* StudyUsageTracker.swift */,
+				B9PAY0012F3DDD010000002 /* PurchaseService.swift */,
+				B9PAY0022F3DDD010000002 /* PaywallViewModel.swift */,
+				B9PAY0032F3DDD010000002 /* PaywallView.swift */,
+				B9LIM0012F3EEE010000002 /* UsageLimitManager.swift */,
 				B9RCF00012F3BBB010000002 /* RemoteConfig.swift */,
 				B9OAI0012F3BBB010000002 /* OpenAIProxyClient.swift */,
 				B9STUDY012F3BBB010000002 /* StudyHomeScreen.swift */,
-				B9GPS0012F3BBB010000002 /* GuidedPassagePickerSheet.swift */,
-				B9GSM0012F3BBB010000002 /* GuidedSearchManager.swift */,
-				B9174B4F2F229F610057C525 /* Products */,
-			);
+					B9GPS0012F3BBB010000002 /* GuidedPassagePickerSheet.swift */,
+					B9GSM0012F3BBB010000002 /* GuidedSearchManager.swift */,
+					B9GSH0012F3FFF010000002 /* GuidedStudyShareCardView.swift */,
+					B9174B4F2F229F610057C525 /* Products */,
+				);
 			sourceTree = "<group>";
 		};
 		B9174B4F2F229F610057C525 /* Products */ = {
@@ -186,6 +270,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				B949C00C2F27EE2F000A59E5 /* JourneyScreen.swift in Sources */,
+				B9JRN0012F3CCC010000001 /* JourneyItem.swift in Sources */,
+				B9JRN0022F3CCC010000001 /* JourneyDayGroup.swift in Sources */,
+				B9JRN0032F3CCC010000001 /* JourneyDayHeaderRow.swift in Sources */,
+				B9JRN0042F3CCC010000001 /* JourneyStreakBarView.swift in Sources */,
+				B9JRN0052F3CCC010000001 /* StreakInsightsView.swift in Sources */,
 				B949C0102F27EEAA000A59E5 /* AppState.swift in Sources */,
 				B949C0082F27E935000A59E5 /* LibraryScreen_New.swift in Sources */,
 				B949C0142F27F211000A59E5 /* TextsScreen.swift in Sources */,
@@ -198,16 +287,39 @@
 				B9174B6C2F22A8EE0057C525 /* SeekApp.swift in Sources */,
 				B9NEW0012F3AAA010000001 /* SearchManager.swift in Sources */,
 				B9NEW0022F3AAA010000001 /* ShareImageGenerator.swift in Sources */,
+				B9SHR0012F3AAA010000001 /* ShareCardView.swift in Sources */,
+				B9SHR0022F3AAA010000001 /* ShareManager.swift in Sources */,
+				B9SHR0032F3AAA010000001 /* StreakShareCardView.swift in Sources */,
 				B9NEW0032F3AAA010000001 /* GuidedStudyScreen.swift in Sources */,
 				B9NEW0042F3AAA010000001 /* JourneyStore.swift in Sources */,
 				B9RDS00012F3BBB010000001 /* RemoteDataService.swift in Sources */,
 				B9RDP0012F3BBB010000001 /* RemoteDatasetProvider.swift in Sources */,
+				B9STY0012F3BBB010000001 /* StudyStore.swift in Sources */,
+				B9STRK0012F3BBB010000001 /* StreakState.swift in Sources */,
+				B9STRK0022F3BBB010000001 /* StreakStore.swift in Sources */,
+				B9STRK0032F3BBB010000001 /* StreakTracker.swift in Sources */,
+				B9STRK0042F3BBB010000001 /* StreakManager.swift in Sources */,
+				B9STRK0052F3BBB010000001 /* StreakMilestone.swift in Sources */,
+				B9SUB00112F3BBB010000001 /* SubscriptionState.swift in Sources */,
+				B9SUB00212F3BBB010000001 /* SubscriptionStore.swift in Sources */,
+				B9SUB00312F3BBB010000001 /* EntitlementManager.swift in Sources */,
+				B9SUB00412F3BBB010000001 /* FeatureGate.swift in Sources */,
+				B9SUB00512F3BBB010000001 /* AppSettings.swift in Sources */,
+				B9SUB00612F3BBB010000001 /* StoreManager.swift in Sources */,
+				B9USG00112F3BBB010000001 /* StudyUsageState.swift in Sources */,
+				B9USG00212F3BBB010000001 /* StudyUsageStore.swift in Sources */,
+				B9USG00312F3BBB010000001 /* StudyUsageTracker.swift in Sources */,
+				B9PAY0012F3DDD010000001 /* PurchaseService.swift in Sources */,
+				B9PAY0022F3DDD010000001 /* PaywallViewModel.swift in Sources */,
+				B9PAY0032F3DDD010000001 /* PaywallView.swift in Sources */,
+				B9LIM0012F3EEE010000001 /* UsageLimitManager.swift in Sources */,
 				B9RCF00012F3BBB010000001 /* RemoteConfig.swift in Sources */,
 				B9OAI0012F3BBB010000001 /* OpenAIProxyClient.swift in Sources */,
 				B9STUDY012F3BBB010000001 /* StudyHomeScreen.swift in Sources */,
-				B9GPS0012F3BBB010000001 /* GuidedPassagePickerSheet.swift in Sources */,
-				B9GSM0012F3BBB010000001 /* GuidedSearchManager.swift in Sources */,
-			);
+					B9GPS0012F3BBB010000001 /* GuidedPassagePickerSheet.swift in Sources */,
+					B9GSM0012F3BBB010000001 /* GuidedSearchManager.swift in Sources */,
+					B9GSH0012F3FFF010000001 /* GuidedStudyShareCardView.swift in Sources */,
+				);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */

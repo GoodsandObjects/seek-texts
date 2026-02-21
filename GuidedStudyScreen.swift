@@ -12,7 +12,7 @@ import Combine
 // MARK: - AI Provider Protocol
 
 protocol AIProvider {
-    func generateResponse(message: String, context: GuidedStudyProviderContext) async throws -> String
+    func generateResponse(messages: [GuidedStudyChatMessage], context: GuidedStudyProviderContext) async throws -> String
 }
 
 // MARK: - Mock AI Provider
@@ -45,7 +45,7 @@ final class MockAIProvider: AIProvider, @unchecked Sendable {
         "transformation and growth"
     ]
 
-    func generateResponse(message: String, context: GuidedStudyProviderContext) async throws -> String {
+    func generateResponse(messages: [GuidedStudyChatMessage], context: GuidedStudyProviderContext) async throws -> String {
         try? await Task.sleep(nanoseconds: 1_500_000_000)
         var response = reflectiveResponses.randomElement() ?? reflectiveResponses[0]
         let theme = themes.randomElement() ?? themes[0]
@@ -69,11 +69,11 @@ struct ChatMessage: Identifiable, Equatable {
         self.timestamp = Date()
     }
 
-    init(from sessionMessage: GuidedSessionMessage) {
-        self.id = sessionMessage.id
-        self.content = sessionMessage.text
-        self.isUser = sessionMessage.role == .user
-        self.timestamp = sessionMessage.timestamp
+    init(from studyMessage: StudyMessage) {
+        self.id = studyMessage.id
+        self.content = studyMessage.content
+        self.isUser = studyMessage.role == "user"
+        self.timestamp = studyMessage.timestamp
     }
 }
 
@@ -84,42 +84,78 @@ class GuidedStudyViewModel: ObservableObject {
     @Published var messages: [ChatMessage] = []
     @Published var isTyping = false
     @Published var hasUsedFreeResponse = false
-    @Published var showPaywall = false
     @Published var showSaveConfirmation = false
     @Published var showSaveInsightSheet = false
+    @Published var showServiceUnavailableError = false
 
     @Published var currentScope: GuidedSessionScope
     @Published var currentVerseRange: ClosedRange<Int>?
     @Published var currentReference: String
     @Published var currentVerseText: String
     @Published var isSwitchingPassage = false
+    @Published var studyContext: StudyContext
 
     private var context: GuidedStudyContext
     let aiProvider: AIProvider
+    private let studyStore = StudyStore.shared
+    private var pendingMessageAfterUnlock: String?
+    private var lastFailedMessageText: String?
+    private var lastFailedConversationID: UUID?
+    private let welcomeMessageText = """
+    Welcome to Guided Study. I'm here to explore this passage with you in a spirit of curiosity and reflection.
+
+    Take a moment to read through the text. When you're ready, choose a prompt below or share what's on your mind.
+    """
 
     private weak var appState: AppState?
-    private var currentSession: GuidedSession?
+    private var currentConversation: StudyConversation?
 
-    init(context: GuidedStudyContext, appState: AppState, existingSession: GuidedSession? = nil, aiProvider: AIProvider? = nil) {
+    init(context: GuidedStudyContext, appState: AppState, existingConversation: StudyConversation? = nil, aiProvider: AIProvider? = nil) {
         self.context = context
         self.appState = appState
         self.aiProvider = aiProvider ?? Self.makeDefaultProvider()
+        let resolvedStudyContext = Self.resolveInitialStudyContext(
+            context: context,
+            existingConversation: existingConversation
+        )
+        self.studyContext = resolvedStudyContext
 
-        // Check if user has already used their free response today
-        hasUsedFreeResponse = !appState.canUseGuidedStudy()
+        // Check if user has reached today's free-tier message limit
+        hasUsedFreeResponse = EntitlementManager.shared.isPremium ? false : !StudyUsageTracker.shared.canSendMessageToday()
 
         // Determine initial scope based on context or existing session
         let initialScope: GuidedSessionScope
         let initialVerseRange: ClosedRange<Int>?
+        let isGeneralConversation: Bool
+        if case .general = resolvedStudyContext {
+            isGeneralConversation = true
+        } else {
+            isGeneralConversation = false
+        }
 
-        if let session = existingSession {
+        if isGeneralConversation {
+            initialScope = .chapter
+            initialVerseRange = nil
+        } else if let conversation = existingConversation {
             // Resuming an existing session - use its scope
-            initialScope = session.scope
-            initialVerseRange = session.verseRange
+            if let start = conversation.verseStart, let end = conversation.verseEnd {
+                initialScope = (start == end) ? .selected : .range
+                initialVerseRange = start...end
+            } else {
+                initialScope = .chapter
+                initialVerseRange = nil
+            }
         } else if !context.selectedVerseIds.isEmpty {
             // New session with selected verses - use selected scope
             initialScope = .selected
-            initialVerseRange = nil
+            let selectedNumbers = context.verses
+                .filter { context.selectedVerseIds.contains($0.id) }
+                .map(\.number)
+            if let min = selectedNumbers.min(), let max = selectedNumbers.max() {
+                initialVerseRange = min...max
+            } else {
+                initialVerseRange = nil
+            }
         } else {
             // New session without selection - default to full chapter
             initialScope = .chapter
@@ -132,37 +168,119 @@ class GuidedStudyViewModel: ObservableObject {
         // Now initialize all stored properties
         self.currentScope = initialScope
         self.currentVerseRange = initialVerseRange
-        self.currentReference = passage.reference
-        self.currentVerseText = passage.verseText
+        self.currentReference = isGeneralConversation ? "" : passage.reference
+        self.currentVerseText = isGeneralConversation ? "" : passage.verseText
 
         // Load existing session messages or create welcome
-        if let session = existingSession {
-            self.currentSession = session
-            for msg in session.messages {
+        if let conversation = existingConversation {
+            loadConversation(conversation)
+        } else {
+            if isGeneralConversation {
+                currentConversation = studyStore.createGeneralConversation()
+                addWelcomeMessage()
+            } else {
+                let passage = makePassageRef()
+                if let conversation = studyStore.fetchConversationForPassage(passage) {
+                    loadConversation(conversation)
+                } else {
+                    currentConversation = studyStore.createConversation(passage)
+                    addWelcomeMessage()
+                }
+            }
+        }
+    }
+
+    private func loadConversation(_ conversation: StudyConversation) {
+        currentConversation = conversation
+        let stored = studyStore.loadMessages(conversationId: conversation.id)
+        if stored.isEmpty {
+            addWelcomeMessage()
+        } else {
+            for msg in stored {
                 messages.append(ChatMessage(from: msg))
             }
-        } else {
-            addWelcomeMessage()
         }
     }
 
     private func addWelcomeMessage() {
-        let welcome = """
-        Welcome to Guided Study. I'm here to explore this passage with you in a spirit of curiosity and reflection.
-
-        Take a moment to read through the text. When you're ready, choose a prompt below or share what's on your mind.
-        """
-        messages.append(ChatMessage(content: welcome, isUser: false))
+        messages.append(ChatMessage(content: welcomeMessageText, isUser: false))
     }
 
     var suggestedPrompts: [String] {
-        [
-            "What does this passage mean?",
-            "How can I apply this today?",
-            "What's the historical context?",
-            "Help me reflect on this",
-            "What questions should I ask?"
-        ]
+        if !isGeneralMode {
+            return [
+                "Explore the context of this passage",
+                "Summarize what is happening here",
+                "Help me reflect on this",
+                "Identify themes in this passage"
+            ]
+        }
+
+        guard let latestUserMessage = latestUserMessageForPromptChips else {
+            return [
+                "Help me learn the basics",
+                "What should I explore next?",
+                "Explain this clearly and respectfully",
+                "Suggest a passage to start with"
+            ]
+        }
+
+        switch classifyGeneralPromptCategory(for: latestUserMessage) {
+        case .traditionOverview:
+            return [
+                "Key beliefs and practices",
+                "Important texts and terms",
+                "Common questions beginners ask",
+                "Suggest a passage to read first"
+            ]
+        case .bookOverview:
+            return [
+                "High-level summary",
+                "Main themes",
+                "Historical context",
+                "Where should I start reading?"
+            ]
+        case .conceptTheme:
+            return [
+                "Define the concept",
+                "How different traditions view this",
+                "Everyday application",
+                "Suggest related passages"
+            ]
+        case .personalReflection:
+            return [
+                "A gentle reflection",
+                "A practical next step",
+                "A short guided prompt for journaling",
+                "Suggest a comforting passage"
+            ]
+        case .fallback:
+            return [
+                "Clarify what you mean",
+                "Offer a balanced overview",
+                "Suggest a passage to anchor this",
+                "What would you like to focus on?"
+            ]
+        }
+    }
+
+    var isGeneralMode: Bool {
+        if case .general = studyContext {
+            return true
+        }
+        return studyContext.scriptureRef == nil
+    }
+
+    var showsPassageHeader: Bool {
+        studyContext.scriptureRef != nil && !currentReference.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var visibleMessages: [ChatMessage] {
+        guard messages.first?.content == welcomeMessageText,
+              messages.contains(where: { $0.isUser }) else {
+            return messages
+        }
+        return Array(messages.dropFirst())
     }
 
     var scopeLabel: String {
@@ -172,7 +290,7 @@ class GuidedStudyViewModel: ObservableObject {
 
         switch currentScope {
         case .chapter:
-            return "Full \(chapterLabel)"
+            return "Read Entire \(chapterLabel)"
         case .range:
             if let range = currentVerseRange {
                 if range.lowerBound == range.upperBound {
@@ -195,19 +313,52 @@ class GuidedStudyViewModel: ObservableObject {
     }
 
     var currentPassageSelection: GuidedPassageSelectionRef {
-        GuidedPassageSelectionRef(
-            traditionId: context.traditionId,
-            traditionName: context.traditionName,
-            scriptureId: context.chapterRef.scriptureId,
-            scriptureName: context.textName,
-            bookId: context.chapterRef.bookId,
-            bookName: context.chapterRef.bookName,
-            chapterNumber: context.chapterRef.chapterNumber
+        let scriptureId = currentConversation?.scriptureId ?? context.chapterRef.scriptureId
+        let bookId = currentConversation?.bookId ?? context.chapterRef.bookId
+        let chapter = currentConversation?.chapter ?? context.chapterRef.chapterNumber
+        let fallbackBookName = currentConversation?.bookId ?? context.chapterRef.bookName
+        let fallbackScriptureName = context.textName
+        let fallbackTraditionId = context.traditionId
+        let fallbackTraditionName = context.traditionName
+
+        let library = LibraryData.shared
+        if scriptureId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isGeneralMode {
+            if let tradition = library.traditions.first,
+               let scripture = tradition.texts.first,
+               let book = scripture.books.first {
+                return GuidedPassageSelectionRef(
+                    traditionId: tradition.id,
+                    traditionName: tradition.name,
+                    scriptureId: scripture.id,
+                    scriptureName: scripture.name,
+                    bookId: book.id,
+                    bookName: book.name,
+                    chapterNumber: 1
+                )
+            }
+        }
+        let matchedTradition = library.traditions.first { tradition in
+            tradition.texts.contains(where: { $0.id == scriptureId })
+        }
+        let matchedScripture = matchedTradition?.texts.first(where: { $0.id == scriptureId })
+        let matchedBook = matchedScripture?.books.first(where: { $0.id == bookId })
+
+        return GuidedPassageSelectionRef(
+            traditionId: matchedTradition?.id ?? fallbackTraditionId,
+            traditionName: matchedTradition?.name ?? fallbackTraditionName,
+            scriptureId: scriptureId,
+            scriptureName: matchedScripture?.name ?? fallbackScriptureName,
+            bookId: bookId,
+            bookName: matchedBook?.name ?? fallbackBookName,
+            chapterNumber: chapter
         )
     }
 
     var currentScriptureRef: ScriptureRef {
-        ScriptureRef(
+        if let ref = studyContext.scriptureRef {
+            return ref
+        }
+        return ScriptureRef(
             scriptureId: context.chapterRef.scriptureId,
             bookId: context.chapterRef.bookId,
             chapter: context.chapterRef.chapterNumber,
@@ -218,7 +369,77 @@ class GuidedStudyViewModel: ObservableObject {
     }
 
     var currentSessionId: UUID? {
-        currentSession?.id
+        currentConversation?.id
+    }
+
+    func logSessionDebugState() {
+        #if DEBUG
+        let sessionContext = isGeneralMode ? "general" : "passage"
+        let scriptureRefState = studyContext.scriptureRef == nil ? "nil" : "present"
+        print("[GuidedStudy] Open sessionContext=\(sessionContext) scriptureRef=\(scriptureRefState)")
+        #endif
+    }
+
+    private var latestUserMessageForPromptChips: String? {
+        messages
+            .reversed()
+            .first(where: { $0.isUser })?
+            .content
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private enum GeneralPromptCategory {
+        case traditionOverview
+        case bookOverview
+        case conceptTheme
+        case personalReflection
+        case fallback
+    }
+
+    private func classifyGeneralPromptCategory(for message: String) -> GeneralPromptCategory {
+        let normalized = message.lowercased()
+
+        let personalMarkers = [
+            "i feel", "i'm feeling", "im feeling", "i am feeling", "anxious", "anxiety",
+            "stressed", "overwhelmed", "afraid", "sad", "grief", "lonely",
+            "how do i apply this", "apply this spiritually", "in my life",
+            "personally", "i struggle", "i am struggling", "help me apply"
+        ]
+        if personalMarkers.contains(where: { normalized.contains($0) }) {
+            return .personalReflection
+        }
+
+        let traditionMarkers = [
+            "tell me about islam", "what is islam", "tell me about buddhism", "what is buddhism",
+            "tell me about christianity", "what is christianity", "tell me about hinduism",
+            "what is hinduism", "tell me about judaism", "what is judaism",
+            "tell me about sikhism", "what is sikhism", "tell me about taoism",
+            "what is taoism", "tell me about religion", "about this tradition"
+        ]
+        if traditionMarkers.contains(where: { normalized.contains($0) }) {
+            return .traditionOverview
+        }
+
+        let bookMarkers = [
+            "what is revelation about", "what is exodus about", "what is genesis about",
+            "what happens in", "overview of", "summary of", "book of", "chapter overview",
+            "surah", "psalms", "proverbs", "gospel", "revelation", "exodus", "genesis"
+        ]
+        if bookMarkers.contains(where: { normalized.contains($0) }) {
+            return .bookOverview
+        }
+
+        let conceptMarkers = [
+            "what is karma", "what is salvation", "what is prayer", "what is grace",
+            "what is sin", "what is forgiveness", "what is faith", "what is dharma",
+            "what is enlightenment", "what is meditation", "meaning of", "define",
+            "concept of", "theme of"
+        ]
+        if conceptMarkers.contains(where: { normalized.contains($0) }) {
+            return .conceptTheme
+        }
+
+        return .fallback
     }
 
     func changePassage(scope: GuidedSessionScope, verseRange: ClosedRange<Int>? = nil) {
@@ -227,6 +448,14 @@ class GuidedStudyViewModel: ObservableObject {
         let passage = context.buildPassage(scope: scope, verseRange: verseRange)
         currentReference = passage.reference
         currentVerseText = passage.verseText
+        studyContext = .passage(scriptureRef: ScriptureRef(
+            scriptureId: context.chapterRef.scriptureId,
+            bookId: context.chapterRef.bookId,
+            chapter: context.chapterRef.chapterNumber,
+            verseStart: verseRange?.lowerBound,
+            verseEnd: verseRange?.upperBound,
+            display: passage.reference
+        ))
     }
 
     func applyPassageSelection(
@@ -277,11 +506,39 @@ class GuidedStudyViewModel: ObservableObject {
             let passage = context.buildPassage(scope: resolvedScope, verseRange: safeRange)
             currentReference = passage.reference
             currentVerseText = passage.verseText
+            studyContext = .passage(scriptureRef: ScriptureRef(
+                scriptureId: selection.scriptureId,
+                bookId: selection.bookId,
+                chapter: selection.chapterNumber,
+                verseStart: safeRange?.lowerBound,
+                verseEnd: safeRange?.upperBound,
+                display: passage.reference
+            ))
 
-            // Passage changes begin a fresh conversation/session.
-            currentSession = nil
-            messages = []
-            addWelcomeMessage()
+            let verseStart = resolvedScope == .range ? safeRange?.lowerBound : nil
+            let verseEnd = resolvedScope == .range ? safeRange?.upperBound : nil
+
+            if let conversationId = currentConversation?.id {
+                studyStore.updateConversationPassage(
+                    conversationId: conversationId,
+                    scriptureId: selection.scriptureId,
+                    bookId: selection.bookId,
+                    chapter: selection.chapterNumber,
+                    verseStart: verseStart,
+                    verseEnd: verseEnd,
+                    fallbackTitle: currentReference
+                )
+            } else {
+                let passageRef = makePassageRef()
+                if let conversation = studyStore.fetchConversationForPassage(passageRef) {
+                    messages = []
+                    loadConversation(conversation)
+                } else {
+                    messages = []
+                    currentConversation = studyStore.createConversation(passageRef)
+                    addWelcomeMessage()
+                }
+            }
         } catch {
             messages.append(ChatMessage(
                 content: "I couldn't load that passage right now. Please try another selection.",
@@ -291,60 +548,79 @@ class GuidedStudyViewModel: ObservableObject {
     }
 
     func sendMessage(_ text: String) {
-        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        guard let state = appState else { return }
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else { return }
+        ensureConversationIfNeeded()
+        guard let conversationID = currentConversation?.id else { return }
 
-        if !state.effectivelyGuided && hasUsedFreeResponse {
-            showPaywall = true
+        if !UsageLimitManager.shared.canPerform(.guidedStudyMessage) {
+            hasUsedFreeResponse = true
+            pendingMessageAfterUnlock = trimmedText
+            #if DEBUG
+            print("[GuidedStudy][ErrorBucket] paywall (quota exceeded)")
+            #endif
+            appState?.presentPaywall(.guidedStudyLimit, onUnlock: { [weak self] in
+                self?.completePremiumUnlock()
+            })
             return
         }
+        showServiceUnavailableError = false
+        lastFailedMessageText = nil
+        lastFailedConversationID = nil
 
-        messages.append(ChatMessage(content: text, isUser: true))
-
-        if !state.effectivelyGuided {
-            state.recordGuidedStudyUsage()
-            hasUsedFreeResponse = true
-        }
+        messages.append(ChatMessage(content: trimmedText, isUser: true))
+        studyStore.appendMessage(
+            conversationId: conversationID,
+            message: StudyMessage(conversationId: conversationID, role: "user", content: trimmedText)
+        )
+        updateConversationTitleIfNeeded()
 
         Task {
-            isTyping = true
-            do {
-                let providerContext = GuidedStudyProviderContext(
-                    context: buildProviderContext(),
-                    scriptureId: context.chapterRef.scriptureId,
-                    bookId: context.chapterRef.bookId,
-                    chapter: context.chapterRef.chapterNumber,
-                    verseRange: currentScope == .range ? currentVerseRange : nil,
-                    selectedVerseIds: currentScope == .selected ? Array(context.selectedVerseIds).sorted() : []
-                )
-                let response = try await aiProvider.generateResponse(message: text, context: providerContext)
-                isTyping = false
-                messages.append(ChatMessage(content: response, isUser: false))
-            } catch {
-                isTyping = false
-                messages.append(ChatMessage(
-                    content: "I couldn't reach Guided Study right now. Please try again in a moment.",
-                    isUser: false
-                ))
-                #if DEBUG
-                print("[GuidedStudy] Provider error: \(error.localizedDescription)")
-                #endif
-            }
-
-            if !state.effectivelyGuided {
-                try? await Task.sleep(nanoseconds: 500_000_000)
-                showPaywall = true
-            }
+            await requestAssistantReply(
+                messageText: trimmedText,
+                conversationID: conversationID
+            )
         }
     }
 
-    private func buildProviderContext() -> String {
-        """
-        Reference: \(currentReference)
-        Scope: \(scopeLabel)
-        Passage:
-        \(currentVerseText)
-        """
+    func retryLastRequest() {
+        guard let messageText = lastFailedMessageText,
+              let conversationID = lastFailedConversationID else { return }
+        showServiceUnavailableError = false
+
+        Task {
+            await requestAssistantReply(
+                messageText: messageText,
+                conversationID: conversationID
+            )
+        }
+    }
+
+    func completePremiumUnlock() {
+        appState?.dismissPaywall()
+        refreshFreeLimitState()
+        guard let pending = pendingMessageAfterUnlock else { return }
+        pendingMessageAfterUnlock = nil
+        sendMessage(pending)
+    }
+
+    private func refreshFreeLimitState() {
+        if EntitlementManager.shared.isPremium {
+            hasUsedFreeResponse = false
+        } else {
+            hasUsedFreeResponse = !StudyUsageTracker.shared.canSendMessageToday()
+        }
+    }
+
+    private func buildProxyMessages() -> [GuidedStudyChatMessage] {
+        messages.compactMap { message in
+            let trimmed = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return nil }
+            if !message.isUser && trimmed == welcomeMessageText.trimmingCharacters(in: .whitespacesAndNewlines) {
+                return nil
+            }
+            return GuidedStudyChatMessage(role: message.isUser ? "user" : "assistant", content: trimmed)
+        }
     }
 
     private static func makeDefaultProvider() -> AIProvider {
@@ -352,48 +628,87 @@ class GuidedStudyViewModel: ObservableObject {
             return MockAIProvider()
         }
 
-        if RemoteConfig.hasConfiguredOpenAIProxyBaseURL {
-            return OpenAIProxyClient(baseURL: RemoteConfig.openAIProxyBaseURL)
+        return OpenAIProxyClient(baseURL: RemoteConfig.guidedStudyProxyBaseURL)
+    }
+
+    private static func resolveInitialStudyContext(
+        context: GuidedStudyContext,
+        existingConversation: StudyConversation?
+    ) -> StudyContext {
+        if let existingConversation {
+            return existingConversation.context
         }
 
-        return MockAIProvider()
+        let isPlaceholderContext = context.chapterRef.scriptureId == "guided-study" || context.verses.isEmpty
+        if isPlaceholderContext {
+            return .general
+        }
+
+        return .passage(scriptureRef: ScriptureRef(
+            scriptureId: context.chapterRef.scriptureId,
+            bookId: context.chapterRef.bookId,
+            chapter: context.chapterRef.chapterNumber,
+            verseStart: nil,
+            verseEnd: nil,
+            display: context.chapterRef.bookName
+        ))
+    }
+
+    private func requestAssistantReply(messageText: String, conversationID: UUID) async {
+        isTyping = true
+        do {
+            let scriptureRefForProvider: String
+            let passageTextForProvider: String
+            if case .passage = studyContext {
+                scriptureRefForProvider = currentReference
+                passageTextForProvider = currentVerseText
+            } else {
+                scriptureRefForProvider = ""
+                passageTextForProvider = ""
+            }
+            let providerContext = GuidedStudyProviderContext(
+                scriptureRef: scriptureRefForProvider,
+                passageText: passageTextForProvider,
+                locale: Locale.current.identifier
+            )
+
+            let proxyMessages = buildProxyMessages()
+            let response = try await aiProvider.generateResponse(messages: proxyMessages, context: providerContext)
+
+            isTyping = false
+            showServiceUnavailableError = false
+            lastFailedMessageText = nil
+            lastFailedConversationID = nil
+
+            messages.append(ChatMessage(content: response, isUser: false))
+            studyStore.appendMessage(
+                conversationId: conversationID,
+                message: StudyMessage(conversationId: conversationID, role: "assistant", content: response)
+            )
+
+            if !EntitlementManager.shared.isPremium {
+                StudyUsageTracker.shared.incrementAfterSend()
+            }
+            refreshFreeLimitState()
+        } catch {
+            isTyping = false
+            showServiceUnavailableError = true
+            lastFailedMessageText = messageText
+            lastFailedConversationID = conversationID
+
+            #if DEBUG
+            print("[GuidedStudy][ErrorBucket] retry (service failure)")
+            print("[GuidedStudy] Provider error: \(error.localizedDescription)")
+            #endif
+        }
     }
 
     func saveSession() {
-        guard let state = appState else { return }
-
-        // Build session messages (skip the welcome message which is at index 0)
-        let sessionMessages: [GuidedSessionMessage] = messages.dropFirst().map { msg in
-            GuidedSessionMessage(role: msg.isUser ? .user : .assistant, text: msg.content)
+        ensureConversationIfNeeded()
+        if let conversationID = currentConversation?.id {
+            studyStore.updateConversationTimestamp(conversationId: conversationID)
+            updateConversationTitleIfNeeded()
         }
-
-        if var session = currentSession {
-            // Update existing session
-            session.messages = sessionMessages
-            session.updatedAt = Date()
-            if let firstUserMsg = sessionMessages.first(where: { $0.role == .user })?.text {
-                session.updateTitle(from: firstUserMsg)
-            }
-            state.updateGuidedSession(session)
-            currentSession = session
-        } else {
-            // Create new session
-            var newSession = GuidedSession(
-                reference: currentReference,
-                scope: currentScope,
-                scriptureId: context.chapterRef.scriptureId,
-                book: context.chapterRef.bookName,
-                chapter: context.chapterRef.chapterNumber,
-                verseRange: currentVerseRange,
-                messages: sessionMessages
-            )
-            if let firstUserMsg = sessionMessages.first(where: { $0.role == .user })?.text {
-                newSession.updateTitle(from: firstUserMsg)
-            }
-            state.saveGuidedSession(newSession)
-            currentSession = newSession
-        }
-
         showSaveConfirmation = true
     }
 
@@ -406,6 +721,69 @@ class GuidedStudyViewModel: ObservableObject {
     var lastAssistantResponse: String? {
         messages.last(where: { !$0.isUser })?.content
     }
+
+    private func ensureConversationIfNeeded() {
+        if currentConversation == nil {
+            if isGeneralMode {
+                currentConversation = studyStore.createGeneralConversation()
+            } else {
+                let passage = makePassageRef()
+                if let conversation = studyStore.fetchConversationForPassage(passage) {
+                    currentConversation = conversation
+                } else {
+                    currentConversation = studyStore.createConversation(passage)
+                }
+            }
+        }
+    }
+
+    private func updateConversationTitleIfNeeded() {
+        guard let conversationID = currentConversation?.id else { return }
+        guard let firstUser = messages.first(where: { $0.isUser }) else { return }
+        let fallbackTitle = isGeneralMode ? "General Conversation" : currentReference
+        studyStore.updateConversationTitle(
+            conversationId: conversationID,
+            firstUserMessage: firstUser.content,
+            fallbackTitle: fallbackTitle
+        )
+    }
+
+    private func makePassageRef() -> StudyPassageRef {
+        let verseStart: Int?
+        let verseEnd: Int?
+
+        switch currentScope {
+        case .chapter:
+            verseStart = nil
+            verseEnd = nil
+        case .range:
+            verseStart = currentVerseRange?.lowerBound
+            verseEnd = currentVerseRange?.upperBound
+        case .selected:
+            let selectedNumbers = context.verses
+                .filter { context.selectedVerseIds.contains($0.id) }
+                .map(\.number)
+            if let min = selectedNumbers.min(), let max = selectedNumbers.max() {
+                verseStart = min
+                verseEnd = max
+            } else if let range = currentVerseRange {
+                verseStart = range.lowerBound
+                verseEnd = range.upperBound
+            } else {
+                verseStart = nil
+                verseEnd = nil
+            }
+        }
+
+        return StudyPassageRef(
+            scriptureId: context.chapterRef.scriptureId,
+            bookId: context.chapterRef.bookId,
+            chapter: context.chapterRef.chapterNumber,
+            verseStart: verseStart,
+            verseEnd: verseEnd,
+            fallbackTitle: currentReference
+        )
+    }
 }
 
 // MARK: - Guided Study Screen
@@ -416,35 +794,50 @@ struct GuidedStudyScreen: View {
     @Environment(\.dismiss) var dismiss
 
     private let initialPrompt: String?
+    private let initialInputText: String
     private let showPassagePickerOnAppear: Bool
+    private let autoFocusInputOnAppear: Bool
     @State private var inputText = ""
     @State private var showPassagePicker = false
     @State private var hasSentInitialPrompt = false
     @State private var hasAutoPresentedPicker = false
+    @State private var showAllPrompts = false
+    @State private var showReader = false
+    @State private var didMarkStreakForAppearance = false
+    @State private var showShareOptions = false
     @FocusState private var isInputFocused: Bool
 
     init(
         context: GuidedStudyContext,
         appState: AppState,
-        existingSession: GuidedSession? = nil,
+        existingConversation: StudyConversation? = nil,
         initialPrompt: String? = nil,
-        showPassagePickerOnAppear: Bool = false
+        initialInputText: String? = nil,
+        showPassagePickerOnAppear: Bool = false,
+        autoFocusInputOnAppear: Bool = false
     ) {
         _viewModel = StateObject(wrappedValue: GuidedStudyViewModel(
             context: context,
             appState: appState,
-            existingSession: existingSession
+            existingConversation: existingConversation
         ))
         self.initialPrompt = initialPrompt
+        let trimmedInitialInput = initialInputText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        self.initialInputText = trimmedInitialInput
+        _inputText = State(initialValue: trimmedInitialInput)
         self.showPassagePickerOnAppear = showPassagePickerOnAppear
+        self.autoFocusInputOnAppear = autoFocusInputOnAppear
     }
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                passageHeader
-
-                Divider()
+                if viewModel.showsPassageHeader {
+                    passageHeader
+                    Divider()
+                } else if viewModel.isGeneralMode {
+                    generalModeAttachmentBar
+                }
 
                 // Main content area with empty state handling
                 if viewModel.currentVerseText.isEmpty && viewModel.messages.isEmpty {
@@ -453,13 +846,19 @@ struct GuidedStudyScreen: View {
                     ScrollViewReader { proxy in
                         ScrollView {
                             LazyVStack(spacing: 16) {
-                                ForEach(viewModel.messages) { message in
+                                ForEach(viewModel.visibleMessages) { message in
                                     ChatBubble(message: message)
                                         .id(message.id)
                                 }
 
-                                if viewModel.messages.count == 1 {
+                                if viewModel.visibleMessages.count <= 1 {
                                     suggestedPromptsView
+                                }
+
+                                if viewModel.showServiceUnavailableError {
+                                    GuidedStudyUnavailableInlineView {
+                                        viewModel.retryLastRequest()
+                                    }
                                 }
 
                                 if viewModel.isTyping {
@@ -505,17 +904,17 @@ struct GuidedStudyScreen: View {
 
                     // Save Session button
                     Button {
-                        viewModel.saveSession()
+                        handleShareTapped()
                     } label: {
-                        Image(systemName: "square.and.arrow.down")
+                        Image(systemName: "square.and.arrow.up")
                     }
-                    .foregroundColor(viewModel.canSave ? SeekTheme.maroonAccent : SeekTheme.textSecondary)
-                    .disabled(!viewModel.canSave)
+                    .foregroundColor(
+                        viewModel.currentVerseText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            ? SeekTheme.textSecondary
+                            : SeekTheme.maroonAccent
+                    )
+                    .disabled(viewModel.currentVerseText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
-            }
-            .sheet(isPresented: $viewModel.showPaywall) {
-                PaywallView(triggerType: .guidedStudy)
-                    .environmentObject(appState)
             }
             .sheet(isPresented: $showPassagePicker) {
                 GuidedPassagePickerSheet(
@@ -532,6 +931,54 @@ struct GuidedStudyScreen: View {
                 SaveInsightSheet(viewModel: viewModel)
                     .environmentObject(appState)
             }
+            .sheet(isPresented: $showAllPrompts) {
+                MorePromptsSheet(
+                    prompts: viewModel.suggestedPrompts,
+                    isLocked: viewModel.hasUsedFreeResponse
+                ) { prompt in
+                    viewModel.sendMessage(prompt)
+                }
+            }
+            .confirmationDialog("Share", isPresented: $showShareOptions, titleVisibility: .visible) {
+                Button("Share passage only") {
+                    sharePassageOnly()
+                }
+                Button("Share passage + my reflection") {
+                    if let reflection = latestUserReflection {
+                        sharePassageAndReflection(reflection)
+                    } else {
+                        sharePassageOnly()
+                    }
+                }
+                Button("Share my reflection only") {
+                    if let reflection = latestUserReflection {
+                        shareReflectionOnly(reflection)
+                    } else {
+                        sharePassageOnly()
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            }
+            .fullScreenCover(isPresented: $showReader) {
+                NavigationStack {
+                    ReaderScreen(
+                        chapterRef: ChapterRef(
+                            scriptureId: viewModel.currentPassageSelection.scriptureId,
+                            bookId: viewModel.currentPassageSelection.bookId,
+                            chapterNumber: viewModel.currentPassageSelection.chapterNumber,
+                            bookName: viewModel.currentPassageSelection.bookName
+                        ),
+                        initialVerseNumber: viewModel.currentVerseRange?.lowerBound
+                    )
+                    .environmentObject(appState)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Done") { showReader = false }
+                                .foregroundColor(SeekTheme.maroonAccent)
+                        }
+                    }
+                }
+            }
             .overlay(alignment: .top) {
                 if viewModel.showSaveConfirmation {
                     SaveConfirmationBanner()
@@ -547,6 +994,13 @@ struct GuidedStudyScreen: View {
             }
             .animation(.easeInOut, value: viewModel.showSaveConfirmation)
             .onAppear {
+                if !didMarkStreakForAppearance {
+                    didMarkStreakForAppearance = true
+                    StreakTracker.shared.markEngaged(source: .study)
+                }
+                viewModel.logSessionDebugState()
+            }
+            .onAppear {
                 guard !hasSentInitialPrompt else { return }
                 guard let prompt = initialPrompt?.trimmingCharacters(in: .whitespacesAndNewlines), !prompt.isEmpty else { return }
                 hasSentInitialPrompt = true
@@ -558,7 +1012,85 @@ struct GuidedStudyScreen: View {
                 hasAutoPresentedPicker = true
                 showPassagePicker = true
             }
+            .onAppear {
+                guard autoFocusInputOnAppear else { return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                    if !initialInputText.isEmpty {
+                        inputText = initialInputText
+                    }
+                    isInputFocused = true
+                }
+            }
+            .onDisappear {
+                didMarkStreakForAppearance = false
+            }
         }
+    }
+
+    private var latestUserReflection: String? {
+        for message in viewModel.messages.reversed() where message.isUser {
+            let trimmed = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+        return nil
+    }
+
+    private func handleShareTapped() {
+        if latestUserReflection != nil {
+            showShareOptions = true
+            return
+        }
+        sharePassageOnly()
+    }
+
+    private func sharePassageOnly() {
+        ShareManager.shared.shareGuidedStudy(
+            reference: viewModel.currentReference,
+            passageText: viewModel.currentVerseText,
+            reflectionText: nil,
+            option: .passageOnly
+        )
+    }
+
+    private func sharePassageAndReflection(_ reflection: String) {
+        ShareManager.shared.shareGuidedStudy(
+            reference: viewModel.currentReference,
+            passageText: viewModel.currentVerseText,
+            reflectionText: reflection,
+            option: .passageWithReflection
+        )
+    }
+
+    private func shareReflectionOnly(_ reflection: String) {
+        ShareManager.shared.shareGuidedStudy(
+            reference: viewModel.currentReference,
+            passageText: viewModel.currentVerseText,
+            reflectionText: reflection,
+            option: .reflectionOnly
+        )
+    }
+
+    private var generalModeAttachmentBar: some View {
+        HStack {
+            Spacer()
+            Button {
+                showPassagePicker = true
+            } label: {
+                Text("Choose a passage")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(SeekTheme.maroonAccent)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(SeekTheme.maroonAccent.opacity(0.08))
+                    .cornerRadius(10)
+            }
+            .buttonStyle(.plain)
+            Spacer()
+        }
+        .padding(.top, 10)
+        .padding(.bottom, 8)
     }
 
     // MARK: - Empty State View
@@ -585,40 +1117,42 @@ struct GuidedStudyScreen: View {
     // MARK: - Passage Header
 
     private var passageHeader: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 3) {
+        Button {
+            showReader = true
+        } label: {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text(viewModel.currentReference)
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(SeekTheme.textPrimary)
 
-                    Text(viewModel.scopeLabel)
+                    if !viewModel.currentVerseText.isEmpty {
+                        Text(viewModel.currentVerseText)
+                            .font(.custom("Georgia", size: 14))
+                            .foregroundColor(SeekTheme.textPrimary.opacity(0.85))
+                            .lineLimit(2)
+                            .lineSpacing(4)
+                            .padding(.top, 2)
+                    }
+                }
+
+                Spacer(minLength: 8)
+
+                HStack(spacing: 4) {
+                    let chapterLabel = ScriptureTerminology.chapterLabel(for: viewModel.currentPassageSelection.scriptureId)
+                    Image(systemName: "book")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(SeekTheme.textSecondary)
+                    Text(viewModel.currentScope == .chapter ? "Read Entire \(chapterLabel)" : "Read in Reader")
+                        .font(.system(size: 13, weight: .semibold))
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
                 }
-
-                Spacer()
-
-                Button {
-                    let impact = UIImpactFeedbackGenerator(style: .light)
-                    impact.impactOccurred()
-                    showPassagePicker = true
-                } label: {
-                    Text("Change")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(SeekTheme.maroonAccent)
-                }
+                .foregroundColor(SeekTheme.maroonAccent)
+                .padding(.top, 2)
             }
-
-            if !viewModel.currentVerseText.isEmpty {
-                Text(viewModel.currentVerseText)
-                    .font(.custom("Georgia", size: 14))
-                    .foregroundColor(SeekTheme.textPrimary.opacity(0.85))
-                    .lineLimit(2)
-                    .lineSpacing(4)
-                    .padding(.top, 2)
-            }
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
@@ -629,7 +1163,7 @@ struct GuidedStudyScreen: View {
 
     private var suggestedPromptsView: some View {
         VStack(spacing: 10) {
-            ForEach(viewModel.suggestedPrompts, id: \.self) { prompt in
+            ForEach(Array(viewModel.suggestedPrompts.prefix(3)), id: \.self) { prompt in
                 Button {
                     viewModel.sendMessage(prompt)
                 } label: {
@@ -642,7 +1176,19 @@ struct GuidedStudyScreen: View {
                         .background(SeekTheme.maroonAccent.opacity(0.08))
                         .cornerRadius(20)
                 }
-                .disabled(viewModel.hasUsedFreeResponse && !appState.effectivelyGuided)
+                .disabled(viewModel.hasUsedFreeResponse)
+            }
+
+            if viewModel.suggestedPrompts.count > 3 {
+                Button {
+                    showAllPrompts = true
+                } label: {
+                    Text("More prompts")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(SeekTheme.textSecondary)
+                        .padding(.top, 2)
+                }
+                .disabled(viewModel.hasUsedFreeResponse)
             }
         }
         .padding(.top, 8)
@@ -652,7 +1198,7 @@ struct GuidedStudyScreen: View {
 
     private var inputArea: some View {
         Group {
-            if appState.effectivelyGuided || !viewModel.hasUsedFreeResponse {
+            if !viewModel.hasUsedFreeResponse {
                 HStack(spacing: 12) {
                     TextField("Ask a question...", text: $inputText, axis: .vertical)
                         .font(.system(size: 15))
@@ -686,7 +1232,7 @@ struct GuidedStudyScreen: View {
                     .foregroundColor(SeekTheme.textSecondary)
 
                     Button {
-                        viewModel.showPaywall = true
+                        appState.presentPaywall(.guidedStudyLimit)
                     } label: {
                         Text("Unlock Unlimited Guided Study")
                             .font(.system(size: 15, weight: .semibold))
@@ -866,6 +1412,40 @@ struct SaveInsightSheet: View {
     }
 }
 
+private struct MorePromptsSheet: View {
+    let prompts: [String]
+    let isLocked: Bool
+    let onSelect: (String) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List(prompts, id: \.self) { prompt in
+                Button {
+                    onSelect(prompt)
+                    dismiss()
+                } label: {
+                    Text(prompt)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(SeekTheme.textPrimary)
+                }
+                .disabled(isLocked)
+            }
+            .listStyle(.insetGrouped)
+            .navigationTitle("Prompt Ideas")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                        .foregroundColor(SeekTheme.maroonAccent)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+}
+
 // MARK: - Save Confirmation Banner
 
 private struct SaveConfirmationBanner: View {
@@ -949,6 +1529,43 @@ struct TypingIndicator: View {
     }
 }
 
+private struct GuidedStudyUnavailableInlineView: View {
+    let onRetry: () -> Void
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Guided Study is unavailable right now.")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(SeekTheme.textPrimary)
+
+                Text("Please try again.")
+                    .font(.system(size: 13))
+                    .foregroundColor(SeekTheme.textSecondary)
+
+                Button {
+                    onRetry()
+                } label: {
+                    Text("Try Again")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(SeekTheme.maroonAccent)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(SeekTheme.maroonAccent.opacity(0.1))
+                        .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(SeekTheme.cardBackground)
+            .cornerRadius(14)
+
+            Spacer(minLength: 60)
+        }
+    }
+}
+
 // MARK: - Corner Radius Extension
 
 extension View {
@@ -971,179 +1588,6 @@ struct RoundedCorner: Shape {
     }
 }
 
-// MARK: - Paywall Trigger Type
-
-enum PaywallTriggerType {
-    case highlight
-    case note
-    case guidedStudy
-}
-
-// MARK: - Paywall View
-
-struct PaywallView: View {
-    @Environment(\.dismiss) var dismiss
-    @EnvironmentObject var appState: AppState
-
-    var triggerType: PaywallTriggerType = .guidedStudy
-
-    private var headerTitle: String {
-        switch triggerType {
-        case .highlight:
-            return "Highlight Limit Reached"
-        case .note:
-            return "Note Limit Reached"
-        case .guidedStudy:
-            return "Unlock Guided Study"
-        }
-    }
-
-    private var headerDescription: String {
-        switch triggerType {
-        case .highlight:
-            return "You've reached the free limit of \(AppState.maxHighlightsFree) highlights. Upgrade to save unlimited highlights across all scriptures."
-        case .note:
-            return "You've reached the free limit of \(AppState.maxNotesFree) notes. Upgrade to write unlimited notes on any verse."
-        case .guidedStudy:
-            return "Continue your journey with unlimited AI-guided reflection and deeper understanding."
-        }
-    }
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 32) {
-                    VStack(spacing: 16) {
-                        ZStack {
-                            Circle()
-                                .fill(SeekTheme.maroonAccent.opacity(0.1))
-                                .frame(width: 100, height: 100)
-
-                            Image(systemName: iconForTrigger)
-                                .font(.system(size: 44, weight: .medium))
-                                .foregroundColor(SeekTheme.maroonAccent)
-                        }
-
-                        Text(headerTitle)
-                            .font(.system(size: 28, weight: .bold))
-                            .foregroundColor(SeekTheme.textPrimary)
-
-                        Text(headerDescription)
-                            .font(.system(size: 16))
-                            .foregroundColor(SeekTheme.textSecondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 20)
-                    }
-                    .padding(.top, 20)
-
-                    VStack(spacing: 16) {
-                        FeatureRow(icon: "bubble.left.and.bubble.right.fill", title: "Unlimited Sessions", description: "Continue exploring passages without limits")
-                        FeatureRow(icon: "highlighter", title: "Unlimited Highlights", description: "Save as many verses as you need")
-                        FeatureRow(icon: "note.text", title: "Unlimited Notes", description: "Write without restrictions")
-                        FeatureRow(icon: "heart.fill", title: "Support Development", description: "Help us bring wisdom to more seekers")
-                    }
-                    .padding(.horizontal, 20)
-
-                    VStack(spacing: 16) {
-                        Button {
-                            appState.setSandboxMode(true)
-                            dismiss()
-                        } label: {
-                            VStack(spacing: 4) {
-                                Text("Become Guided")
-                                    .font(.system(size: 18, weight: .bold))
-                                Text("$4.99/month")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .opacity(0.9)
-                            }
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 18)
-                            .background(SeekTheme.maroonAccent)
-                            .cornerRadius(14)
-                        }
-
-                        Button {
-                            dismiss()
-                        } label: {
-                            Text("Restore Purchases")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(SeekTheme.textSecondary)
-                        }
-                    }
-                    .padding(.horizontal, 20)
-
-                    Text("Cancel anytime. Recurring billing.")
-                        .font(.system(size: 12))
-                        .foregroundColor(SeekTheme.textSecondary.opacity(0.7))
-                }
-                .padding(.bottom, 40)
-            }
-            .themedScreenBackground()
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundColor(SeekTheme.textSecondary.opacity(0.5))
-                    }
-                }
-            }
-        }
-    }
-
-    private var iconForTrigger: String {
-        switch triggerType {
-        case .highlight:
-            return "highlighter"
-        case .note:
-            return "note.text"
-        case .guidedStudy:
-            return "sparkles"
-        }
-    }
-}
-
-// MARK: - Feature Row
-
-private struct FeatureRow: View {
-    let icon: String
-    let title: String
-    let description: String
-
-    var body: some View {
-        HStack(spacing: 16) {
-            ZStack {
-                Circle()
-                    .fill(SeekTheme.maroonAccent.opacity(0.1))
-                    .frame(width: 44, height: 44)
-
-                Image(systemName: icon)
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(SeekTheme.maroonAccent)
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(SeekTheme.textPrimary)
-
-                Text(description)
-                    .font(.system(size: 13))
-                    .foregroundColor(SeekTheme.textSecondary)
-            }
-
-            Spacer()
-        }
-        .padding(16)
-        .background(SeekTheme.cardBackground)
-        .cornerRadius(14)
-    }
-}
-
 // MARK: - Preview
 
 #Preview("Guided Study") {
@@ -1163,6 +1607,5 @@ private struct FeatureRow: View {
 }
 
 #Preview("Paywall") {
-    PaywallView()
-        .environmentObject(AppState())
+    PaywallView(streakDays: 8) { }
 }

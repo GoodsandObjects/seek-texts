@@ -3,8 +3,7 @@
 //  Seek
 //
 //  Configuration for remote data fetching.
-//  Supports multiple fallback URLs for reliability.
-//  Uses GitHub raw content and jsDelivr CDN (free hosting).
+//  Uses Cloudflare Pages-hosted scripture dataset.
 //
 
 import Foundation
@@ -17,16 +16,10 @@ struct RemoteConfig {
 
     // MARK: - Base URLs (Primary + Fallbacks)
 
-    /// Primary base URLs for fetching scripture data.
-    /// The app will try these in order until one succeeds.
-    /// These point to GitHub raw content / jsDelivr CDN (free hosting).
-    ///
-    /// To change the data source:
-    /// 1. Update these URLs to point to your hosted data
-    /// 2. Or use setCustomBaseURL() at runtime for testing
+    /// Primary base URL for fetching scripture data from Cloudflare Pages.
+    /// To change the data source, update this URL or use setCustomBaseURL() at runtime.
     static let baseURLs: [String] = [
-        "https://cdn.jsdelivr.net/gh/anthropics/seek-texts@main/data",
-        "https://raw.githubusercontent.com/anthropics/seek-texts/main/data"
+        "https://seek-texts.pages.dev"
     ]
 
     /// Current active base URL (can be overridden for testing/development)
@@ -35,14 +28,27 @@ struct RemoteConfig {
         set { UserDefaults.standard.set(newValue, forKey: Keys.activeBaseURL) }
     }
 
-    /// Placeholder base URL for Guided Study proxy.
-    /// Replace this at runtime (UserDefaults) with your own backend endpoint.
-    static let openAIProxyBaseURLPlaceholder = "https://your-guided-study-proxy.example.com"
+    /// Default base URL for Guided Study proxy backend.
+    /// Requests are sent to: https://yourdomain.com/api/guided-study
+    static let guidedStudyProxyBaseURLPlaceholder = "https://yourdomain.com/api"
 
     /// Base URL for Guided Study proxy backend.
+    static var guidedStudyProxyBaseURL: String {
+        get {
+            UserDefaults.standard.string(forKey: Keys.guidedStudyProxyBaseURL)
+            ?? UserDefaults.standard.string(forKey: Keys.openAIProxyBaseURLLegacy)
+            ?? guidedStudyProxyBaseURLPlaceholder
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: Keys.guidedStudyProxyBaseURL)
+            UserDefaults.standard.removeObject(forKey: Keys.openAIProxyBaseURLLegacy)
+        }
+    }
+
+    // Compatibility alias; prefer guidedStudyProxyBaseURL.
     static var openAIProxyBaseURL: String {
-        get { UserDefaults.standard.string(forKey: Keys.openAIProxyBaseURL) ?? openAIProxyBaseURLPlaceholder }
-        set { UserDefaults.standard.set(newValue, forKey: Keys.openAIProxyBaseURL) }
+        get { guidedStudyProxyBaseURL }
+        set { guidedStudyProxyBaseURL = newValue }
     }
 
     /// Toggle for local mock responses versus live proxy responses.
@@ -51,19 +57,24 @@ struct RemoteConfig {
         set { UserDefaults.standard.set(newValue, forKey: Keys.useMockGuidedStudyProvider) }
     }
 
+    static var hasConfiguredGuidedStudyProxyBaseURL: Bool {
+        let trimmed = guidedStudyProxyBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let url = URL(string: trimmed) else { return false }
+        return url.scheme?.lowercased() == "https"
+    }
+
     static var hasConfiguredOpenAIProxyBaseURL: Bool {
-        let trimmed = openAIProxyBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !trimmed.isEmpty && trimmed != openAIProxyBaseURLPlaceholder
+        hasConfiguredGuidedStudyProxyBaseURL
     }
 
     // MARK: - Path Templates
 
     /// Path to the main index file containing all traditions/scriptures/books
-    static let indexPath = "index.json"
+    static let indexPath = "\(bundledDataFolder)/index.json"
 
     /// Template for chapter data paths.
     /// Placeholders: {scriptureId}, {bookId}, {chapter}
-    static let chapterPathTemplate = "{scriptureId}/{bookId}/{chapter}.json"
+    static let chapterPathTemplate = "\(bundledDataFolder)/{scriptureId}/{bookId}/{chapter}.json"
 
     // MARK: - URL Builders
 
@@ -150,7 +161,8 @@ struct RemoteConfig {
 
     private enum Keys {
         static let activeBaseURL = "seek_active_base_url"
-        static let openAIProxyBaseURL = "seek_openai_proxy_base_url"
+        static let guidedStudyProxyBaseURL = "seek_guided_study_proxy_base_url"
+        static let openAIProxyBaseURLLegacy = "seek_openai_proxy_base_url"
         static let useMockGuidedStudyProvider = "seek_guided_study_use_mock_provider"
     }
 }

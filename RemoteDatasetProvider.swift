@@ -21,7 +21,7 @@ final class RemoteDatasetProvider {
     var mode: DatasetMode = .bundlePreferred
 
     // Prepared for future Cloudflare Pages hosting. Intentionally not active by default.
-    private let cloudflareTemplate = "https://seek-texts.pages.dev/{scripture}/{book}/{chapter}.json"
+    private let cloudflareTemplate = "https://seek-texts.pages.dev/SeekData/{scripture}/{book}/{chapter}.json"
 
     // Existing remote sources remain active until Cloudflare cutover.
     var remoteBaseURLs: [String] {

@@ -158,12 +158,12 @@ private struct BookRowView: View {
         return book.name
     }
 
-    private var subtitleText: String {
+    private var subtitleText: String? {
         if scriptureId == "quran" {
             return "Open surah"
         }
         if normalizedGitaChapterNumber != nil {
-            return "Open chapter"
+            return nil
         }
         if book.chapterCount == 1 {
             return "1 chapter"
@@ -181,9 +181,11 @@ private struct BookRowView: View {
                     .font(.system(size: 17, weight: .medium))
                     .foregroundColor(SeekTheme.textPrimary)
 
-                Text(subtitleText)
-                    .font(.system(size: 13))
-                    .foregroundColor(SeekTheme.textSecondary)
+                if let subtitleText {
+                    Text(subtitleText)
+                        .font(.system(size: 13))
+                        .foregroundColor(SeekTheme.textSecondary)
+                }
             }
 
             Spacer()

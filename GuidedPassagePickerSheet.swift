@@ -35,6 +35,35 @@ struct GuidedPassagePickerSheet: View {
         self.onApply = onApply
     }
 
+    private struct FlatBookOption: Identifiable {
+        let traditionId: String
+        let traditionName: String
+        let scriptureId: String
+        let scriptureName: String
+        let book: Book
+
+        var id: String {
+            "\(scriptureId)-\(book.id)"
+        }
+
+        var title: String {
+            "\(book.name)"
+        }
+
+        var subtitle: String {
+            "\(scriptureName)"
+        }
+    }
+
+    private struct FlatScriptureOption: Identifiable {
+        let tradition: Tradition
+        let scripture: SacredText
+
+        var id: String {
+            "\(tradition.id)-\(scripture.id)"
+        }
+    }
+
     private var selectedTradition: Tradition? {
         libraryData.traditions.first(where: { $0.id == selectedTraditionId })
     }
@@ -47,24 +76,55 @@ struct GuidedPassagePickerSheet: View {
         selectedScripture?.books.first(where: { $0.id == selectedBookId })
     }
 
-    private var availableTraditions: [Tradition] {
-        libraryData.traditions
+    private var allScriptureOptions: [FlatScriptureOption] {
+        libraryData.traditions.flatMap { tradition in
+            tradition.texts.map { FlatScriptureOption(tradition: tradition, scripture: $0) }
+        }
     }
 
-    private var availableScriptures: [SacredText] {
-        selectedTradition?.texts ?? []
+    private var allBookOptions: [FlatBookOption] {
+        let options = allScriptureOptions.flatMap { option in
+            option.scripture.books.map { book in
+                FlatBookOption(
+                    traditionId: option.tradition.id,
+                    traditionName: option.tradition.name,
+                    scriptureId: option.scripture.id,
+                    scriptureName: option.scripture.name,
+                    book: book
+                )
+            }
+        }
+
+        return options.sorted {
+            if $0.book.name == $1.book.name {
+                return $0.scriptureName < $1.scriptureName
+            }
+            return $0.book.name < $1.book.name
+        }
     }
 
-    private var availableBooks: [Book] {
-        selectedScripture?.books ?? []
+    private var selectedBookOption: FlatBookOption? {
+        allBookOptions.first { option in
+            option.traditionId == selectedTraditionId &&
+            option.scriptureId == selectedScriptureId &&
+            option.book.id == selectedBookId
+        }
     }
 
     private var maxUnitNumber: Int {
         max(1, selectedBook?.chapterCount ?? 1)
     }
 
+    private var maxRangeVerse: Int {
+        guard let scriptureId = selectedScripture?.id, let bookId = selectedBook?.id else {
+            return 176
+        }
+        let loaded = VerseLoader.shared.load(scriptureId: scriptureId, bookId: bookId, chapter: selectedUnitNumber).count
+        return max(1, loaded == 0 ? 176 : loaded)
+    }
+
     private var unitLabel: String {
-        guard let scripture = selectedScripture else { return "Unit" }
+        guard let scripture = selectedScripture else { return "Chapter" }
         return ScriptureTerminology.chapterLabel(for: scripture.id)
     }
 
@@ -78,13 +138,8 @@ struct GuidedPassagePickerSheet: View {
         return ScriptureTerminology.verseLabelLowercased(for: scripture.id, plural: true)
     }
 
-    private var bookLabel: String {
-        guard let scripture = selectedScripture else { return "Book" }
-        return scripture.id == "quran" ? "Surah" : "Book"
-    }
-
-    private var scopePrimaryLabel: String {
-        maxUnitNumber <= 1 ? "Full Passage" : "Full \(unitLabel)"
+    private var readEntireLabel: String {
+        "Read Entire \(unitLabel)"
     }
 
     private var canApply: Bool {
@@ -101,7 +156,7 @@ struct GuidedPassagePickerSheet: View {
                         searchResultsSection
                     }
 
-                    advancedControlsSection
+                    selectionCard
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 14)
@@ -114,14 +169,6 @@ struct GuidedPassagePickerSheet: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                         .foregroundColor(SeekTheme.maroonAccent)
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Apply") {
-                        applySelection()
-                    }
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(canApply ? SeekTheme.maroonAccent : SeekTheme.textSecondary)
-                    .disabled(!canApply)
                 }
             }
             .task {
@@ -145,10 +192,12 @@ struct GuidedPassagePickerSheet: View {
             .onChange(of: selectedBookId) { _, _ in
                 normalizeSelectionForDependencies(changedBook: true)
             }
+            .onChange(of: selectedUnitNumber) { _, _ in
+                normalizeRangeBounds()
+            }
             .onChange(of: useRange) { _, enabled in
                 if enabled {
-                    rangeStart = max(1, rangeStart)
-                    rangeEnd = max(rangeStart, rangeEnd)
+                    normalizeRangeBounds()
                 }
             }
             .onChange(of: searchText) { _, _ in
@@ -157,6 +206,174 @@ struct GuidedPassagePickerSheet: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+    }
+
+    private var selectionCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            sectionStepLabel("Step 1", title: "Text")
+            Menu {
+                ForEach(allScriptureOptions) { option in
+                    Button {
+                        selectedTraditionId = option.tradition.id
+                        selectedScriptureId = option.scripture.id
+                        if let firstBook = option.scripture.books.first {
+                            selectedBookId = firstBook.id
+                        }
+                        selectedUnitNumber = 1
+                        useRange = false
+                        rangeStart = 1
+                        rangeEnd = 8
+                    } label: {
+                        Text(option.scripture.name)
+                    }
+                }
+            } label: {
+                selectionRow(
+                    title: selectedScripture?.name ?? "Select Text",
+                    subtitle: selectedTradition?.name ?? "Choose a scripture dataset",
+                    isEnabled: !allScriptureOptions.isEmpty
+                )
+            }
+            .disabled(allScriptureOptions.isEmpty)
+
+            sectionStepLabel("Step 2", title: "Book")
+            Menu {
+                ForEach(allBookOptions) { option in
+                    Button {
+                        selectedTraditionId = option.traditionId
+                        selectedScriptureId = option.scriptureId
+                        selectedBookId = option.book.id
+                        selectedUnitNumber = 1
+                        useRange = false
+                        rangeStart = 1
+                        rangeEnd = 8
+                    } label: {
+                        Text("\(option.title) • \(option.subtitle)")
+                    }
+                }
+            } label: {
+                selectionRow(
+                    title: selectedBookOption?.title ?? "Select Book",
+                    subtitle: selectedBookOption?.subtitle ?? "Choose a passage source",
+                    isEnabled: !allBookOptions.isEmpty
+                )
+            }
+            .disabled(allBookOptions.isEmpty)
+
+            sectionStepLabel("Step 3", title: unitLabel)
+            if maxUnitNumber > 1 {
+                Menu {
+                    ForEach(1...maxUnitNumber, id: \.self) { unit in
+                        Button("\(unit)") { selectedUnitNumber = unit }
+                    }
+                } label: {
+                    selectionRow(
+                        title: "\(unitLabel) \(selectedUnitNumber)",
+                        subtitle: "Choose the \(unitLabel.lowercased())",
+                        isEnabled: canApply
+                    )
+                }
+                .disabled(!canApply)
+            } else {
+                selectionRow(
+                    title: "\(unitLabel) 1",
+                    subtitle: "This text has a single \(unitLabel.lowercased())",
+                    isEnabled: canApply
+                )
+            }
+
+            sectionStepLabel("Step 4", title: "Range")
+            HStack(spacing: 8) {
+                scopeButton(title: readEntireLabel, selected: !useRange) {
+                    useRange = false
+                }
+
+                scopeButton(title: "\(rangeLabel) Range", selected: useRange) {
+                    useRange = true
+                }
+            }
+            .disabled(!canApply)
+            .opacity(canApply ? 1.0 : 0.5)
+
+            if useRange && canApply {
+                VStack(spacing: 10) {
+                    rangeStepper(
+                        title: "From",
+                        value: $rangeStart,
+                        minimum: 1,
+                        maximum: max(1, rangeEnd)
+                    )
+
+                    rangeStepper(
+                        title: "To",
+                        value: $rangeEnd,
+                        minimum: max(1, rangeStart),
+                        maximum: maxRangeVerse
+                    )
+
+                    Text("\(rangeLabel) \(rangeStart)-\(rangeEnd)")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(SeekTheme.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(.top, 2)
+            }
+
+            sectionStepLabel("Step 5", title: "Ready")
+            Button {
+                applySelection()
+            } label: {
+                Text("Begin Guided Study")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 13)
+                    .background(canApply ? SeekTheme.maroonAccent : SeekTheme.textSecondary.opacity(0.35))
+                    .cornerRadius(11)
+            }
+            .disabled(!canApply)
+        }
+        .padding(16)
+        .background(SeekTheme.cardBackground)
+        .cornerRadius(16)
+    }
+
+    private func sectionStepLabel(_ step: String, title: String) -> some View {
+        HStack(spacing: 8) {
+            Text(step)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(SeekTheme.maroonAccent)
+                .textCase(.uppercase)
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(SeekTheme.textSecondary)
+        }
+    }
+
+    private func selectionRow(title: String, subtitle: String, isEnabled: Bool) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(isEnabled ? SeekTheme.textPrimary : SeekTheme.textSecondary)
+                    .lineLimit(1)
+
+                Text(subtitle)
+                    .font(.system(size: 12))
+                    .foregroundColor(SeekTheme.textSecondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 8)
+
+            Image(systemName: "chevron.down")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(SeekTheme.textSecondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(SeekTheme.creamBackground)
+        .cornerRadius(10)
     }
 
     private var searchHeader: some View {
@@ -235,102 +452,6 @@ struct GuidedPassagePickerSheet: View {
         }
     }
 
-    private var advancedControlsSection: some View {
-        VStack(spacing: 14) {
-            pickerCard(title: "Religion") {
-                menuPicker(
-                    selection: $selectedTraditionId,
-                    options: availableTraditions.map { ($0.id, $0.name) },
-                    placeholder: "Select religion"
-                )
-            }
-
-            pickerCard(title: "Text") {
-                menuPicker(
-                    selection: $selectedScriptureId,
-                    options: availableScriptures.map { ($0.id, $0.name) },
-                    placeholder: "Select text"
-                )
-            }
-
-            pickerCard(title: bookLabel) {
-                menuPicker(
-                    selection: $selectedBookId,
-                    options: availableBooks.map { ($0.id, displayBookTitle($0)) },
-                    placeholder: "Select \(bookLabel.lowercased())"
-                )
-            }
-
-            if maxUnitNumber > 1 {
-                pickerCard(title: unitLabel) {
-                    HStack(spacing: 10) {
-                        Button {
-                            selectedUnitNumber = max(1, selectedUnitNumber - 1)
-                        } label: {
-                            Image(systemName: "minus")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(selectedUnitNumber > 1 ? SeekTheme.maroonAccent : SeekTheme.textSecondary.opacity(0.35))
-                                .frame(width: 36, height: 36)
-                        }
-                        .disabled(selectedUnitNumber <= 1)
-
-                        Text("\(selectedUnitNumber)")
-                            .font(.system(size: 18, weight: .semibold, design: .rounded))
-                            .foregroundColor(SeekTheme.textPrimary)
-                            .frame(maxWidth: .infinity)
-
-                        Button {
-                            selectedUnitNumber = min(maxUnitNumber, selectedUnitNumber + 1)
-                        } label: {
-                            Image(systemName: "plus")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(selectedUnitNumber < maxUnitNumber ? SeekTheme.maroonAccent : SeekTheme.textSecondary.opacity(0.35))
-                                .frame(width: 36, height: 36)
-                        }
-                        .disabled(selectedUnitNumber >= maxUnitNumber)
-                    }
-                }
-            }
-
-            pickerCard(title: "Current Passage") {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 8) {
-                        scopeButton(title: scopePrimaryLabel, selected: !useRange) {
-                            useRange = false
-                        }
-
-                        scopeButton(title: "Range", selected: useRange) {
-                            useRange = true
-                        }
-                    }
-
-                    if useRange {
-                        VStack(spacing: 10) {
-                            rangeStepper(
-                                title: "From",
-                                value: $rangeStart,
-                                minimum: 1,
-                                maximum: max(1, rangeEnd)
-                            )
-
-                            rangeStepper(
-                                title: "To",
-                                value: $rangeEnd,
-                                minimum: max(1, rangeStart),
-                                maximum: 176
-                            )
-
-                            Text("\(rangeLabel) \(rangeStart)-\(rangeEnd)")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(SeekTheme.textSecondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     private func scopeButton(title: String, selected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
@@ -345,16 +466,29 @@ struct GuidedPassagePickerSheet: View {
     }
 
     private func restoreInitialSelectionIfPossible() {
-        guard !availableTraditions.isEmpty else { return }
+        guard !libraryData.traditions.isEmpty else { return }
 
-        selectedTraditionId = availableTraditions.contains(where: { $0.id == initialSelection.traditionId })
-            ? initialSelection.traditionId
-            : availableTraditions[0].id
+        if let initialOption = allBookOptions.first(where: {
+            $0.scriptureId == initialSelection.scriptureId &&
+            $0.book.id == initialSelection.bookId
+        }) {
+            selectedTraditionId = initialOption.traditionId
+            selectedScriptureId = initialOption.scriptureId
+            selectedBookId = initialOption.book.id
+        } else if let first = allBookOptions.first {
+            selectedTraditionId = first.traditionId
+            selectedScriptureId = first.scriptureId
+            selectedBookId = first.book.id
+        }
 
         useRange = initialScope == .range
         if let initialRange {
             rangeStart = max(1, initialRange.lowerBound)
             rangeEnd = max(rangeStart, initialRange.upperBound)
+        }
+
+        if initialSelection.chapterNumber > 0 {
+            selectedUnitNumber = initialSelection.chapterNumber
         }
     }
 
@@ -363,58 +497,56 @@ struct GuidedPassagePickerSheet: View {
         changedScripture: Bool = false,
         changedBook: Bool = false
     ) {
-        if selectedTradition == nil, let first = availableTraditions.first {
-            selectedTraditionId = first.id
+        if selectedTradition == nil,
+           let firstTradition = libraryData.traditions.first {
+            selectedTraditionId = firstTradition.id
         }
 
-        let scriptures = availableScriptures
-        if scriptures.isEmpty {
-            selectedScriptureId = ""
-            selectedBookId = ""
-            selectedUnitNumber = 1
-            return
+        guard let tradition = selectedTradition else { return }
+
+        if selectedScripture == nil,
+           let firstScripture = tradition.texts.first {
+            selectedScriptureId = firstScripture.id
         }
 
-        if changedTradition || !scriptures.contains(where: { $0.id == selectedScriptureId }) {
-            selectedScriptureId = scriptures.contains(where: { $0.id == initialSelection.scriptureId })
-                ? initialSelection.scriptureId
-                : scriptures[0].id
+        guard let scripture = selectedScripture else { return }
+
+        if selectedBook == nil,
+           let firstBook = scripture.books.first {
+            selectedBookId = firstBook.id
         }
 
-        let books = availableBooks
-        if books.isEmpty {
-            selectedBookId = ""
-            selectedUnitNumber = 1
-            return
+        if changedTradition || changedScripture || changedBook {
+            let maxChapter = max(1, selectedBook?.chapterCount ?? 1)
+            selectedUnitNumber = min(max(1, selectedUnitNumber), maxChapter)
         }
 
-        if changedScripture || !books.contains(where: { $0.id == selectedBookId }) {
-            selectedBookId = books.contains(where: { $0.id == initialSelection.bookId })
-                ? initialSelection.bookId
-                : books[0].id
-        }
-
-        let maxChapter = maxUnitNumber
-
-        if changedScripture || changedBook || selectedUnitNumber > maxChapter {
-            let preferred = initialSelection.chapterNumber
+        let preferred = initialSelection.chapterNumber
+        let maxChapter = max(1, selectedBook?.chapterCount ?? 1)
+        if selectedUnitNumber < 1 || selectedUnitNumber > maxChapter {
             selectedUnitNumber = min(max(1, preferred), maxChapter)
         }
 
-        if selectedUnitNumber < 1 {
-            selectedUnitNumber = 1
-        }
+        normalizeRangeBounds()
+    }
 
-        if selectedUnitNumber > maxChapter {
-            selectedUnitNumber = maxChapter
-        }
+    private func normalizeRangeBounds() {
+        let maxVerse = maxRangeVerse
 
         if rangeStart < 1 {
             rangeStart = 1
         }
 
+        if rangeStart > maxVerse {
+            rangeStart = maxVerse
+        }
+
         if rangeEnd < rangeStart {
             rangeEnd = rangeStart
+        }
+
+        if rangeEnd > maxVerse {
+            rangeEnd = maxVerse
         }
     }
 
@@ -474,102 +606,50 @@ struct GuidedPassagePickerSheet: View {
         dismiss()
     }
 
-    private func pickerCard<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(SeekTheme.textSecondary)
-                .textCase(.uppercase)
-                .tracking(0.5)
-
-            content()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(SeekTheme.cardBackground)
-        .cornerRadius(14)
-        .shadow(color: SeekTheme.cardShadow, radius: 6, x: 0, y: 2)
-    }
-
-    private func menuPicker(
-        selection: Binding<String>,
-        options: [(id: String, title: String)],
-        placeholder: String
-    ) -> some View {
-        Menu {
-            ForEach(options, id: \.id) { option in
-                Button(option.title) {
-                    selection.wrappedValue = option.id
-                }
-            }
-        } label: {
-            HStack {
-                Text(options.first(where: { $0.id == selection.wrappedValue })?.title ?? placeholder)
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(options.isEmpty ? SeekTheme.textSecondary : SeekTheme.textPrimary)
-                    .lineLimit(1)
-                Spacer()
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(SeekTheme.textSecondary)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity)
-            .background(SeekTheme.creamBackground)
-            .cornerRadius(10)
-        }
-    }
-
-    private func displayBookTitle(_ book: Book) -> String {
-        guard let scripture = selectedScripture else { return book.name }
-        if scripture.id == "quran" {
-            let ayahs = VerseLoader.shared.load(scriptureId: scripture.id, bookId: book.id, chapter: 1).count
-            if ayahs > 0 {
-                return "\(book.name) • \(ayahs) ayahs"
-            }
-            return book.name
-        }
-        return book.name
-    }
-
     private func rangeStepper(title: String, value: Binding<Int>, minimum: Int, maximum: Int) -> some View {
-        HStack(spacing: 10) {
-            Text(title)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(SeekTheme.textSecondary)
-                .frame(width: 52, alignment: .leading)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                Text(title)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(SeekTheme.textSecondary)
+                    .frame(width: 52, alignment: .leading)
 
-            HStack(spacing: 0) {
-                Button {
-                    value.wrappedValue = max(minimum, value.wrappedValue - 1)
-                } label: {
-                    Image(systemName: "minus")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(value.wrappedValue > minimum ? SeekTheme.maroonAccent : SeekTheme.textSecondary.opacity(0.35))
-                        .frame(width: 34, height: 34)
+                HStack(spacing: 0) {
+                    Button {
+                        value.wrappedValue = max(minimum, value.wrappedValue - 1)
+                    } label: {
+                        Image(systemName: "minus")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(value.wrappedValue > minimum ? SeekTheme.maroonAccent : SeekTheme.textSecondary.opacity(0.35))
+                            .frame(width: 34, height: 34)
+                    }
+                    .disabled(value.wrappedValue <= minimum)
+
+                    Text("\(value.wrappedValue)")
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .foregroundColor(SeekTheme.textPrimary)
+                        .frame(maxWidth: .infinity)
+
+                    Button {
+                        value.wrappedValue = min(maximum, value.wrappedValue + 1)
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(value.wrappedValue < maximum ? SeekTheme.maroonAccent : SeekTheme.textSecondary.opacity(0.35))
+                            .frame(width: 34, height: 34)
+                    }
+                    .disabled(value.wrappedValue >= maximum)
                 }
-                .disabled(value.wrappedValue <= minimum)
-
-                Text("\(value.wrappedValue)")
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                    .foregroundColor(SeekTheme.textPrimary)
-                    .frame(maxWidth: .infinity)
-
-                Button {
-                    value.wrappedValue = min(maximum, value.wrappedValue + 1)
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(value.wrappedValue < maximum ? SeekTheme.maroonAccent : SeekTheme.textSecondary.opacity(0.35))
-                        .frame(width: 34, height: 34)
-                }
-                .disabled(value.wrappedValue >= maximum)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 4)
+                .background(SeekTheme.creamBackground)
+                .cornerRadius(10)
             }
-            .padding(.horizontal, 4)
-            .padding(.vertical, 4)
-            .background(SeekTheme.creamBackground)
-            .cornerRadius(10)
+
+            Text("Up to \(maxRangeVerse) \(rangeLabelPluralLowercased)")
+                .font(.system(size: 11))
+                .foregroundColor(SeekTheme.textSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
