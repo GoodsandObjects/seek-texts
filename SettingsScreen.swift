@@ -3,6 +3,7 @@ import UIKit
 
 struct SettingsScreen: View {
     @EnvironmentObject var appState: AppState
+    @Environment(\.openURL) private var openURL
     @StateObject private var libraryData = LibraryData.shared
     @StateObject private var studyStore = StudyStore.shared
     @ObservedObject private var appSettings = AppSettings.shared
@@ -198,6 +199,60 @@ struct SettingsScreen: View {
                                 .foregroundColor(SeekTheme.textSecondary)
                         }
                         .padding(16)
+                    }
+                    .background(SeekTheme.cardBackground)
+                    .cornerRadius(14)
+                    .shadow(color: SeekTheme.cardShadow, radius: 6, x: 0, y: 2)
+                }
+
+                // Legal Section
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Legal")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(SeekTheme.textSecondary)
+                        .textCase(.uppercase)
+                        .tracking(0.5)
+                        .padding(.horizontal, 4)
+
+                    VStack(spacing: 0) {
+                        Button {
+                            guard let url = URL(string: "https://seek.app/terms") else { return }
+                            openURL(url)
+                        } label: {
+                            HStack {
+                                Text("Terms of Use")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(SeekTheme.textPrimary)
+
+                                Spacer()
+
+                                Image(systemName: "arrow.up.right")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(SeekTheme.textSecondary)
+                            }
+                            .padding(16)
+                        }
+
+                        Divider()
+                            .padding(.leading, 16)
+
+                        Button {
+                            guard let url = URL(string: "https://seek.app/privacy") else { return }
+                            openURL(url)
+                        } label: {
+                            HStack {
+                                Text("Privacy Policy")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(SeekTheme.textPrimary)
+
+                                Spacer()
+
+                                Image(systemName: "arrow.up.right")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(SeekTheme.textSecondary)
+                            }
+                            .padding(16)
+                        }
                     }
                     .background(SeekTheme.cardBackground)
                     .cornerRadius(14)

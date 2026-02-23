@@ -28,6 +28,9 @@ const SYSTEM_PROMPT = [
   "Use clean language: no profanity, vulgarity, sexualized, or aggressive phrasing.",
   "If asked for self-harm, violence, or illegal wrongdoing instructions, refuse and redirect to safety.",
   "Never provide methods or step-by-step instructions for harmful or illegal acts.",
+  "Format for readability: keep paragraphs short (1-2 sentences) with a blank line between paragraphs.",
+  "Use bullets sparingly when listing ideas; avoid dense walls of text.",
+  "When helpful, use brief section headings such as Plain meaning, Key ideas, and Reflection.",
 ].join("\\n");
 
 export default {
@@ -174,15 +177,14 @@ async function handleGuidedStudy(request, env) {
       model: "gpt-4.1-mini",
       messages: openAIMessages,
       temperature: 0.6,
-      max_tokens: 700,
+      max_tokens: 320,
     }),
   });
 
   if (!completionResponse.ok) {
-    const errorBody = await completionResponse.text();
     const status = completionResponse.status >= 400 && completionResponse.status < 600 ? completionResponse.status : 502;
     return jsonResponse(
-      { error: `Upstream error: ${truncate(errorBody, 500) || "unknown"}` },
+      { error: "The study service is temporarily unavailable. Please try again." },
       status,
       request,
       env
