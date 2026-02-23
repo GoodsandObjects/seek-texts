@@ -1,0 +1,8 @@
+name = "seek-guided-study-proxy"
+main = "cloudflare-worker.js"
+compatibility_date = "2026-02-23"
+workers_dev = true
+
+[vars]
+# Use "*" for iOS/native clients and development tools, or provide comma-separated origins.
+ALLOWED_ORIGINS = "*"

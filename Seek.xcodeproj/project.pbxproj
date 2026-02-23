@@ -25,6 +25,7 @@
 		B9SHR0012F3AAA010000001 /* ShareCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9SHR0012F3AAA010000002 /* ShareCardView.swift */; };
 		B9SHR0022F3AAA010000001 /* ShareManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9SHR0022F3AAA010000002 /* ShareManager.swift */; };
 		B9SHR0032F3AAA010000001 /* StreakShareCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9SHR0032F3AAA010000002 /* StreakShareCardView.swift */; };
+		B9VSC0012F4BBB010000001 /* VerseShareCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9VSC0012F4BBB010000002 /* VerseShareCardView.swift */; };
 		B9NEW0032F3AAA010000001 /* GuidedStudyScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9NEW0032F3AAA010000002 /* GuidedStudyScreen.swift */; };
 		B9NEW0042F3AAA010000001 /* JourneyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9NEW0042F3AAA010000002 /* JourneyStore.swift */; };
 		B9RDS00012F3BBB010000001 /* RemoteDataService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9RDS00012F3BBB010000002 /* RemoteDataService.swift */; };
@@ -81,6 +82,7 @@
 		B9SHR0012F3AAA010000002 /* ShareCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareCardView.swift; sourceTree = "<group>"; };
 		B9SHR0022F3AAA010000002 /* ShareManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareManager.swift; sourceTree = "<group>"; };
 		B9SHR0032F3AAA010000002 /* StreakShareCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreakShareCardView.swift; sourceTree = "<group>"; };
+		B9VSC0012F4BBB010000002 /* VerseShareCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerseShareCardView.swift; sourceTree = "<group>"; };
 		B9NEW0032F3AAA010000002 /* GuidedStudyScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidedStudyScreen.swift; sourceTree = "<group>"; };
 		B9NEW0042F3AAA010000002 /* JourneyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JourneyStore.swift; sourceTree = "<group>"; };
 		B9RDS00012F3BBB010000002 /* RemoteDataService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteDataService.swift; sourceTree = "<group>"; };
@@ -154,6 +156,7 @@
 				B9SHR0012F3AAA010000002 /* ShareCardView.swift */,
 				B9SHR0022F3AAA010000002 /* ShareManager.swift */,
 				B9SHR0032F3AAA010000002 /* StreakShareCardView.swift */,
+				B9VSC0012F4BBB010000002 /* VerseShareCardView.swift */,
 				B9NEW0032F3AAA010000002 /* GuidedStudyScreen.swift */,
 				B9NEW0042F3AAA010000002 /* JourneyStore.swift */,
 				B9RDS00012F3BBB010000002 /* RemoteDataService.swift */,
@@ -290,6 +293,7 @@
 				B9SHR0012F3AAA010000001 /* ShareCardView.swift in Sources */,
 				B9SHR0022F3AAA010000001 /* ShareManager.swift in Sources */,
 				B9SHR0032F3AAA010000001 /* StreakShareCardView.swift in Sources */,
+				B9VSC0012F4BBB010000001 /* VerseShareCardView.swift in Sources */,
 				B9NEW0032F3AAA010000001 /* GuidedStudyScreen.swift in Sources */,
 				B9NEW0042F3AAA010000001 /* JourneyStore.swift in Sources */,
 				B9RDS00012F3BBB010000001 /* RemoteDataService.swift in Sources */,
