@@ -8,6 +8,55 @@
  *   OPENAI_API_KEY
  */
 
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_REQUESTS = 20;
+const rateBuckets = new Map();
+const MAX_SCRIPTURE_REF_LENGTH = 240;
+const MAX_PASSAGE_LENGTH = 8_000;
+const MAX_MESSAGE_LENGTH = 1_200;
+const MAX_MESSAGE_COUNT = 24;
+
+function getClientIP(req) {
+  const forwarded = req.headers["x-forwarded-for"];
+  if (typeof forwarded === "string" && forwarded.trim().length > 0) {
+    return forwarded.split(",")[0].trim();
+  }
+  return req.socket?.remoteAddress || "unknown";
+}
+
+function exceedsRateLimit(ip) {
+  const now = Date.now();
+  const bucket = rateBuckets.get(ip) || [];
+  const recent = bucket.filter((ts) => now - ts < RATE_LIMIT_WINDOW_MS);
+  if (recent.length >= RATE_LIMIT_MAX_REQUESTS) {
+    rateBuckets.set(ip, recent);
+    return true;
+  }
+  recent.push(now);
+  rateBuckets.set(ip, recent);
+  return false;
+}
+
+function sanitizeText(input, maxLength) {
+  if (typeof input !== "string") return "";
+  const stripped = input
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return stripped.slice(0, maxLength);
+}
+
+function outputUnsafe(text) {
+  const lower = String(text || "").toLowerCase();
+  const blockedPatterns = [
+    /\b(fuck|shit|bitch|cunt|motherfucker)\b/i,
+    /\b(kill yourself|suicide method|how to make a bomb|how to murder)\b/i
+  ];
+  return blockedPatterns.some((pattern) => pattern.test(lower));
+}
+
 export default async function handler(req, res) {
   if (req.method === "GET") {
     res.status(200).json({ ok: true });
@@ -19,6 +68,12 @@ export default async function handler(req, res) {
     return;
   }
 
+  const clientIP = getClientIP(req);
+  if (exceedsRateLimit(clientIP)) {
+    res.status(429).json({ error: "Too many requests. Please try again shortly." });
+    return;
+  }
+
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     res.status(500).json({ error: "Server misconfiguration" });
@@ -26,12 +81,33 @@ export default async function handler(req, res) {
   }
 
   try {
+    if (!req.body || typeof req.body !== "object") {
+      res.status(400).json({ error: "Invalid JSON payload." });
+      return;
+    }
+
     const {
       scriptureRef = "",
       passageText = "",
       messages = [],
       locale = "en-US"
     } = req.body ?? {};
+
+    const cleanScriptureRef = sanitizeText(scriptureRef, MAX_SCRIPTURE_REF_LENGTH);
+    const cleanPassageText = sanitizeText(passageText, MAX_PASSAGE_LENGTH);
+    if (cleanScriptureRef.length == 0 && cleanPassageText.length == 0) {
+      res.status(400).json({ error: "Missing scripture context." });
+      return;
+    }
+
+    if (!Array.isArray(messages) || messages.length === 0) {
+      res.status(400).json({ error: "Messages are required." });
+      return;
+    }
+    if (messages.length > MAX_MESSAGE_COUNT) {
+      res.status(400).json({ error: "Too many messages in one request." });
+      return;
+    }
 
     const systemPrompt =
       "You are Guided Study, a neutral and balanced religious study companion.\n" +
@@ -49,22 +125,30 @@ export default async function handler(req, res) {
       "Avoid moral prescriptions and 'you should' language.\n" +
       "Use clean language: no profanity, vulgarity, slang, sexualized, or aggressive phrasing.\n" +
       "Maintain calm, respectful wording even if the user is harsh.\n" +
+      "If asked for self-harm, violence, or illegal wrongdoing instructions, refuse clearly and gently redirect toward safety and lawful support.\n" +
+      "Never provide methods, steps, planning, or optimization for harmful or illegal acts.\n" +
       "You may ask one gentle optional follow-up question.";
 
-    const history = Array.isArray(messages)
-      ? messages
-          .filter((m) => (m?.role === "user" || m?.role === "assistant") && typeof m?.content === "string")
-          .map((m) => ({ role: m.role, content: m.content }))
-      : [];
+    const history = messages
+      .filter((m) => (m?.role === "user" || m?.role === "assistant") && typeof m?.content === "string")
+      .map((m) => ({
+        role: m.role,
+        content: sanitizeText(m.content, MAX_MESSAGE_LENGTH)
+      }))
+      .filter((m) => m.content.length > 0);
+    if (history.length === 0) {
+      res.status(400).json({ error: "No valid messages found." });
+      return;
+    }
 
     const openAIMessages = [
       { role: "system", content: systemPrompt },
       {
         role: "user",
         content: [
-          `Scripture Reference: ${String(scriptureRef)}`,
-          `Passage Text: ${String(passageText)}`,
-          `Locale: ${String(locale)}`
+          `Scripture Reference: ${cleanScriptureRef}`,
+          `Passage Text: ${cleanPassageText}`,
+          `Locale: ${sanitizeText(String(locale), 64)}`
         ].join("\n")
       },
       ...history
@@ -90,8 +174,12 @@ export default async function handler(req, res) {
 
     const data = await openAIResponse.json();
     const reply = data?.choices?.[0]?.message?.content || "";
+    const safeReply = sanitizeText(reply, 4_000);
+    const finalReply = outputUnsafe(safeReply)
+      ? "I can’t help with harmful or explicit content. If you want, we can continue with a safe, respectful reflection on the passage."
+      : safeReply;
 
-    res.status(200).json({ replyText: String(reply).trim() });
+    res.status(200).json({ replyText: String(finalReply).trim() });
   } catch (error) {
     res.status(500).json({ error: "Proxy request failed" });
   }

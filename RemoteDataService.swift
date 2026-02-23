@@ -162,6 +162,7 @@ final class RemoteDataService: CatalogProvider, ChapterProvider {
             ?? fileManager.temporaryDirectory
         let cacheDir = appSupport.appendingPathComponent("SeekCache", isDirectory: true)
         try? fileManager.createDirectory(at: cacheDir, withIntermediateDirectories: true)
+        setExcludedFromBackup(cacheDir)
         return cacheDir
     }()
 
@@ -172,6 +173,7 @@ final class RemoteDataService: CatalogProvider, ChapterProvider {
     private var chaptersCacheDir: URL {
         let dir = cacheDirectory.appendingPathComponent("chapters", isDirectory: true)
         try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
+        setExcludedFromBackup(dir)
         return dir
     }
 
@@ -377,6 +379,7 @@ final class RemoteDataService: CatalogProvider, ChapterProvider {
     private func saveIndexToCache(_ index: RemoteIndex) throws {
         let data = try JSONEncoder().encode(index)
         try data.write(to: indexCacheFile)
+        setExcludedFromBackup(indexCacheFile)
     }
 
     private func loadIndexFromCache() -> RemoteIndex? {
@@ -397,6 +400,8 @@ final class RemoteDataService: CatalogProvider, ChapterProvider {
         let scriptureDir = chaptersCacheDir.appendingPathComponent(scriptureId, isDirectory: true)
         let bookDir = scriptureDir.appendingPathComponent(bookId, isDirectory: true)
         try fileManager.createDirectory(at: bookDir, withIntermediateDirectories: true)
+        setExcludedFromBackup(scriptureDir)
+        setExcludedFromBackup(bookDir)
 
         let chapterFile = bookDir.appendingPathComponent("\(chapter).json")
 
@@ -404,6 +409,14 @@ final class RemoteDataService: CatalogProvider, ChapterProvider {
         let wrapper = CachedChapter(verses: verses)
         let data = try JSONEncoder().encode(wrapper)
         try data.write(to: chapterFile)
+        setExcludedFromBackup(chapterFile)
+    }
+
+    private func setExcludedFromBackup(_ url: URL) {
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        var mutableURL = url
+        try? mutableURL.setResourceValues(values)
     }
 
     private func loadChapterFromCache(scriptureId: String, bookId: String, chapter: Int) -> [LoadedVerse]? {

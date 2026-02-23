@@ -401,6 +401,7 @@ final class StudyStore: ObservableObject {
         do {
             let data = try JSONEncoder().encode(conversations)
             try data.write(to: conversationsFileURL, options: .atomic)
+            setExcludedFromBackup(conversationsFileURL)
         } catch {
             #if DEBUG
             print("[StudyStore] Failed to persist conversations: \(error)")
@@ -410,8 +411,10 @@ final class StudyStore: ObservableObject {
 
     private func persistMessages(_ messages: [StudyMessage], conversationId: UUID) {
         do {
+            let fileURL = messagesFileURL(for: conversationId)
             let data = try JSONEncoder().encode(messages)
-            try data.write(to: messagesFileURL(for: conversationId), options: .atomic)
+            try data.write(to: fileURL, options: .atomic)
+            setExcludedFromBackup(fileURL)
         } catch {
             #if DEBUG
             print("[StudyStore] Failed to persist messages for \(conversationId): \(error)")
@@ -423,5 +426,16 @@ final class StudyStore: ObservableObject {
         if !fileManager.fileExists(atPath: messagesDirectoryURL.path) {
             try? fileManager.createDirectory(at: messagesDirectoryURL, withIntermediateDirectories: true)
         }
+        setExcludedFromBackup(messagesDirectoryURL)
+        if fileManager.fileExists(atPath: conversationsFileURL.path) {
+            setExcludedFromBackup(conversationsFileURL)
+        }
+    }
+
+    private func setExcludedFromBackup(_ url: URL) {
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        var mutableURL = url
+        try? mutableURL.setResourceValues(values)
     }
 }

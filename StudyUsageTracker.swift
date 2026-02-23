@@ -2,9 +2,9 @@ import Foundation
 
 final class StudyUsageTracker {
     static let shared = StudyUsageTracker()
+    static let freeDailyLimit = 3
 
     private let calendar: Calendar
-    private let freeDailyLimit = 3
 
     init(calendar: Calendar = .current) {
         self.calendar = calendar
@@ -14,7 +14,7 @@ final class StudyUsageTracker {
         if isPremium {
             return true
         }
-        return normalizedState(for: calendar.startOfDay(for: Date())).messagesUsedToday < freeDailyLimit
+        return normalizedState(for: calendar.startOfDay(for: Date())).messagesUsedToday < Self.freeDailyLimit
     }
 
     func incrementAfterSend() {

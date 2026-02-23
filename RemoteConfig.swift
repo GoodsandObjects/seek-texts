@@ -25,7 +25,11 @@ struct RemoteConfig {
     /// Current active base URL (can be overridden for testing/development)
     static var activeBaseURL: String {
         get { UserDefaults.standard.string(forKey: Keys.activeBaseURL) ?? baseURLs.first ?? "" }
-        set { UserDefaults.standard.set(newValue, forKey: Keys.activeBaseURL) }
+        set {
+            #if DEBUG
+            UserDefaults.standard.set(newValue, forKey: Keys.activeBaseURL)
+            #endif
+        }
     }
 
     /// Default base URL for Guided Study proxy backend.
@@ -40,8 +44,10 @@ struct RemoteConfig {
             ?? guidedStudyProxyBaseURLPlaceholder
         }
         set {
+            #if DEBUG
             UserDefaults.standard.set(newValue, forKey: Keys.guidedStudyProxyBaseURL)
             UserDefaults.standard.removeObject(forKey: Keys.openAIProxyBaseURLLegacy)
+            #endif
         }
     }
 
@@ -54,7 +60,11 @@ struct RemoteConfig {
     /// Toggle for local mock responses versus live proxy responses.
     static var useMockGuidedStudyProvider: Bool {
         get { UserDefaults.standard.object(forKey: Keys.useMockGuidedStudyProvider) as? Bool ?? false }
-        set { UserDefaults.standard.set(newValue, forKey: Keys.useMockGuidedStudyProvider) }
+        set {
+            #if DEBUG
+            UserDefaults.standard.set(newValue, forKey: Keys.useMockGuidedStudyProvider)
+            #endif
+        }
     }
 
     static var hasConfiguredGuidedStudyProxyBaseURL: Bool {

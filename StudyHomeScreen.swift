@@ -37,6 +37,10 @@ struct StudyHomeScreen: View {
                     continueReadingCard(state: state)
                 }
 
+                if libraryData.loadState != .loaded {
+                    libraryStatusBanner
+                }
+
                 VStack(spacing: 10) {
                     Button {
                         startGuidedStudy()
@@ -114,6 +118,60 @@ struct StudyHomeScreen: View {
             }
             await GuidedSearchManager.shared.warmIndex(with: libraryData.traditions)
             refreshLastReadingState()
+        }
+    }
+
+    @ViewBuilder
+    private var libraryStatusBanner: some View {
+        switch libraryData.loadState {
+        case .loading, .idle:
+            HStack(spacing: 10) {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: SeekTheme.maroonAccent))
+                Text("Loading study library…")
+                    .font(.system(size: 13))
+                    .foregroundColor(SeekTheme.textSecondary)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(SeekTheme.cardBackground)
+            .cornerRadius(10)
+        case .offline:
+            HStack(spacing: 10) {
+                Text("You’re offline. Guided Study may be limited.")
+                    .font(.system(size: 13))
+                    .foregroundColor(SeekTheme.textSecondary)
+                Spacer()
+                Button("Retry") {
+                    Task { await libraryData.retry() }
+                }
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(SeekTheme.maroonAccent)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(SeekTheme.cardBackground)
+            .cornerRadius(10)
+        case .error(let message):
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Library error")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(SeekTheme.textPrimary)
+                Text(message)
+                    .font(.system(size: 12))
+                    .foregroundColor(SeekTheme.textSecondary)
+                Button("Retry") {
+                    Task { await libraryData.retry() }
+                }
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(SeekTheme.maroonAccent)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(SeekTheme.cardBackground)
+            .cornerRadius(10)
+        case .loaded:
+            EmptyView()
         }
     }
 

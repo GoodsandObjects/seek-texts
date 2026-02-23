@@ -12,7 +12,7 @@ struct GuidedSearchResult: Identifiable {
 }
 
 actor GuidedSearchManager {
-    static let shared = GuidedSearchManager()
+    nonisolated static let shared = GuidedSearchManager()
 
     private struct SearchEntry {
         let traditionId: String
@@ -47,7 +47,7 @@ actor GuidedSearchManager {
     private let indexedTraditionIDs = Set(["christianity", "judaism", "islam", "hinduism", "buddhism"])
     private let singleUnitScriptures = Set(["quran", "bhagavad-gita", "heart-sutra", "upanishads"])
 
-    func warmIndex(with traditions: [Tradition]) {
+    func warmIndex(with traditions: [Tradition]) async {
         let topTraditions = traditions.filter { indexedTraditionIDs.contains($0.id) }
         let signature = makeSignature(for: topTraditions)
         guard signature != indexedSignature else { return }
@@ -73,7 +73,7 @@ actor GuidedSearchManager {
                     nextBooks.append(indexedBook)
 
                     for chapter in 1...max(1, book.chapterCount) {
-                        let verses = VerseLoader.shared.load(
+                        let verses = await loadVerses(
                             scriptureId: scripture.id,
                             bookId: book.id,
                             chapter: chapter
@@ -111,8 +111,8 @@ actor GuidedSearchManager {
         entries = nextEntries
     }
 
-    func search(query rawQuery: String, traditions: [Tradition], maxResults: Int = 16) -> [GuidedSearchResult] {
-        warmIndex(with: traditions)
+    func search(query rawQuery: String, traditions: [Tradition], maxResults: Int = 16) async -> [GuidedSearchResult] {
+        await warmIndex(with: traditions)
 
         let query = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return [] }
@@ -120,7 +120,7 @@ actor GuidedSearchManager {
         var results: [GuidedSearchResult] = []
         results.reserveCapacity(maxResults)
 
-        let direct = directReferenceMatches(query: query, maxResults: maxResults)
+        let direct = await directReferenceMatches(query: query, maxResults: maxResults)
         results.append(contentsOf: direct)
 
         if results.count < maxResults {
@@ -134,7 +134,7 @@ actor GuidedSearchManager {
         }
     }
 
-    private func directReferenceMatches(query: String, maxResults: Int) -> [GuidedSearchResult] {
+    private func directReferenceMatches(query: String, maxResults: Int) async -> [GuidedSearchResult] {
         let normalized = normalizeName(query)
         var results: [GuidedSearchResult] = []
 
@@ -171,7 +171,7 @@ actor GuidedSearchManager {
                     verseRange: range
                 )
 
-                let preview = entryPreview(
+                let preview = await entryPreview(
                     scriptureId: book.scriptureId,
                     bookId: book.bookId,
                     chapter: chosenChapter,
@@ -215,7 +215,7 @@ actor GuidedSearchManager {
                     GuidedSearchResult(
                         id: "book-\(book.scriptureId)-\(book.bookId)-\(chapter)",
                         reference: reference,
-                        preview: entryPreview(scriptureId: book.scriptureId, bookId: book.bookId, chapter: chapter, verseRange: nil),
+                        preview: await entryPreview(scriptureId: book.scriptureId, bookId: book.bookId, chapter: chapter, verseRange: nil),
                         religionLabel: book.traditionName,
                         selection: selection,
                         scope: .chapter,
@@ -354,8 +354,8 @@ actor GuidedSearchManager {
         return "\(base):\(verseRange.lowerBound)-\(verseRange.upperBound)"
     }
 
-    private func entryPreview(scriptureId: String, bookId: String, chapter: Int, verseRange: ClosedRange<Int>?) -> String {
-        let verses = VerseLoader.shared.load(scriptureId: scriptureId, bookId: bookId, chapter: chapter)
+    private func entryPreview(scriptureId: String, bookId: String, chapter: Int, verseRange: ClosedRange<Int>?) async -> String {
+        let verses = await loadVerses(scriptureId: scriptureId, bookId: bookId, chapter: chapter)
         guard !verses.isEmpty else { return "" }
 
         let source: [LoadedVerse]
@@ -368,6 +368,12 @@ actor GuidedSearchManager {
 
         let text = source.map(\.text).joined(separator: " ")
         return String(text.prefix(120))
+    }
+
+    private func loadVerses(scriptureId: String, bookId: String, chapter: Int) async -> [LoadedVerse] {
+        await MainActor.run {
+            VerseLoader.shared.load(scriptureId: scriptureId, bookId: bookId, chapter: chapter)
+        }
     }
 
     private func makeSignature(for traditions: [Tradition]) -> String {

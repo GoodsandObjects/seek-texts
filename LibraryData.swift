@@ -154,7 +154,16 @@ class LibraryData: ObservableObject {
                 print("[LibraryData] Refresh failed, keeping bundled data: \(error.localizedDescription)")
                 #endif
             } else {
-                loadState = .error(error.localizedDescription)
+                if let remoteError = error as? RemoteDataError {
+                    switch remoteError {
+                    case .offline, .allURLsFailed:
+                        loadState = .offline
+                    default:
+                        loadState = .error(error.localizedDescription)
+                    }
+                } else {
+                    loadState = .error(error.localizedDescription)
+                }
                 #if DEBUG
                 print("[LibraryData] Failed to load: \(error.localizedDescription)")
                 #endif

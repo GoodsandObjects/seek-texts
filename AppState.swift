@@ -267,9 +267,9 @@ class AppState: ObservableObject {
     private let guidedDateKey = "seek_guided_date"
     private let sandboxKey = "seek_guided_sandbox"
 
-    static let maxHighlightsFree = 18
-    static let maxNotesFree = 7
-    static let maxGuidedStudyFree = 3
+    static let maxHighlightsFree = UsageLimitManager.freeHighlightsLimit
+    static let maxNotesFree = UsageLimitManager.freeNotesLimit
+    static let maxGuidedStudyFree = StudyUsageTracker.freeDailyLimit
 
     init() {
         loadPersistedData()
@@ -472,9 +472,7 @@ class AppState: ObservableObject {
     }
 
     func canUseGuidedStudy() -> Bool {
-        if effectivelyGuided { return true }
-        let today = Self.todayString()
-        return guidedStudyLastUsedDate != today
+        UsageLimitManager.shared.canPerform(.guidedStudyMessage)
     }
 
     func recordGuidedStudyUsage() {

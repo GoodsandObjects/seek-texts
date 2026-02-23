@@ -168,6 +168,8 @@ final class OpenAIProxyClient: AIProvider, @unchecked Sendable {
                     continue
                 }
                 throw OpenAIProxyClientError.httpError(statusCode: httpResponse.statusCode, message: message)
+            } catch let proxyError as OpenAIProxyClientError {
+                throw proxyError
             } catch {
                 lastError = error
                 if isRetryable(error: error), attempt < maxRetries {

@@ -15,13 +15,12 @@ enum PaywallContext: Equatable {
 
 final class UsageLimitManager {
     static let shared = UsageLimitManager()
+    static let freeNotesLimit = 7
+    static let freeHighlightsLimit = 7
 
     private let defaults: UserDefaults
     private let notesKey = "seek_notes"
     private let highlightsKey = "seek_highlights"
-
-    private let freeNotesLimit = 7
-    private let freeHighlightsLimit = 7
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -36,9 +35,9 @@ final class UsageLimitManager {
         case .guidedStudyMessage:
             return StudyUsageTracker.shared.canSendMessage(isPremium: false)
         case .saveNote:
-            return totalNotesCount() < freeNotesLimit
+            return totalNotesCount() < Self.freeNotesLimit
         case .saveHighlight:
-            return totalHighlightsCount() < freeHighlightsLimit
+            return totalHighlightsCount() < Self.freeHighlightsLimit
         }
     }
 

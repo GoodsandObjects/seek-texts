@@ -109,6 +109,7 @@ class GuidedStudyViewModel: ObservableObject {
 
     private weak var appState: AppState?
     private var currentConversation: StudyConversation?
+    private let maxUserMessageCharacters = 1_200
 
     init(context: GuidedStudyContext, appState: AppState, existingConversation: StudyConversation? = nil, aiProvider: AIProvider? = nil) {
         self.context = context
@@ -550,6 +551,14 @@ class GuidedStudyViewModel: ObservableObject {
     func sendMessage(_ text: String) {
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedText.isEmpty else { return }
+        guard trimmedText.count <= maxUserMessageCharacters else {
+            showServiceUnavailableError = false
+            messages.append(ChatMessage(
+                content: "Please keep messages under \(maxUserMessageCharacters) characters.",
+                isUser: false
+            ))
+            return
+        }
         ensureConversationIfNeeded()
         guard let conversationID = currentConversation?.id else { return }
 
@@ -692,9 +701,28 @@ class GuidedStudyViewModel: ObservableObject {
             refreshFreeLimitState()
         } catch {
             isTyping = false
-            showServiceUnavailableError = true
             lastFailedMessageText = messageText
             lastFailedConversationID = conversationID
+
+            if let proxyError = error as? OpenAIProxyClientError,
+               case .httpError(let statusCode, _) = proxyError {
+                showServiceUnavailableError = false
+                if statusCode == 429 {
+                    messages.append(ChatMessage(
+                        content: "You’re sending messages too quickly. Please wait a moment and try again.",
+                        isUser: false
+                    ))
+                } else if statusCode == 400 {
+                    messages.append(ChatMessage(
+                        content: "I couldn’t process that message. Please shorten or rephrase it and try again.",
+                        isUser: false
+                    ))
+                } else {
+                    showServiceUnavailableError = true
+                }
+            } else {
+                showServiceUnavailableError = true
+            }
 
             #if DEBUG
             print("[GuidedStudy][ErrorBucket] retry (service failure)")

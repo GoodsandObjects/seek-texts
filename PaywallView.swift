@@ -1,10 +1,12 @@
 import SwiftUI
 import UIKit
+import StoreKit
 
 struct PaywallView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @StateObject private var viewModel = PaywallViewModel()
+    @ObservedObject private var storeManager = StoreManager.shared
     @State private var showSuccessState = false
     @State private var successPulse = false
 
@@ -157,6 +159,12 @@ struct PaywallView: View {
                 .font(.system(size: 11, weight: .regular))
                 .foregroundColor(SeekTheme.textSecondary.opacity(0.8))
                 .disabled(viewModel.isLoading)
+
+                Text("Payment will be charged to your Apple Account at confirmation of purchase. Subscription auto-renews unless cancelled at least 24 hours before the end of the current period. Manage or cancel anytime in App Store account settings.")
+                    .font(.system(size: 10))
+                    .foregroundColor(SeekTheme.textSecondary.opacity(0.85))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal, 24)
             .padding(.top, 14)
@@ -177,6 +185,11 @@ struct PaywallView: View {
         } message: {
             Text(viewModel.errorMessage ?? "")
         }
+        .task {
+            if storeManager.products.isEmpty {
+                await storeManager.fetchProducts()
+            }
+        }
     }
 
     @ViewBuilder
@@ -194,15 +207,15 @@ struct PaywallView: View {
                 }
 
                 if plan == .annual {
-                    Text("$59.99 per year")
+                    Text(priceText(for: plan))
                         .font(.system(size: 20, weight: .semibold))
                         .foregroundColor(SeekTheme.textPrimary)
 
-                    Text("Billed annually")
+                    Text(priceDetailText(for: plan))
                         .font(.system(size: 13))
                         .foregroundColor(SeekTheme.textSecondary)
                 } else {
-                    Text("$7.99 per month")
+                    Text(priceText(for: plan))
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(SeekTheme.textPrimary)
                 }
@@ -218,6 +231,29 @@ struct PaywallView: View {
             .shadow(color: isSelected ? SeekTheme.cardShadow.opacity(1.6) : SeekTheme.cardShadow, radius: isSelected ? 10 : 6, x: 0, y: 2)
         }
         .buttonStyle(.plain)
+    }
+
+    private func product(for plan: SubscriptionPlan) -> StoreKit.Product? {
+        let id = (plan == .annual) ? StoreManager.annualProductID : StoreManager.monthlyProductID
+        return storeManager.products.first(where: { $0.id == id })
+    }
+
+    private func priceText(for plan: SubscriptionPlan) -> String {
+        guard let product = product(for: plan) else {
+            return "Price unavailable"
+        }
+
+        switch plan {
+        case .annual:
+            return "\(product.displayPrice) per year"
+        case .monthly:
+            return "\(product.displayPrice) per month"
+        }
+    }
+
+    private func priceDetailText(for plan: SubscriptionPlan) -> String {
+        guard plan == .annual else { return "" }
+        return product(for: plan) == nil ? "Billed annually" : "Auto-renews yearly"
     }
 
     @ViewBuilder
