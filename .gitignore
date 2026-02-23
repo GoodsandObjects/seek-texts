@@ -3,3 +3,8 @@ build/
 *.xcuserdata
 *.xcuserstate
 .DS_Store
+serverless/.wrangler/
+.wrangler/
+.wrangler-state/
+.dev.vars
+.dev.vars.*
