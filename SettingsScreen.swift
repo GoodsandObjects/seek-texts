@@ -44,12 +44,12 @@ struct SettingsScreen: View {
 
                             Text(appState.effectivelyGuided ? "Active" : "Free")
                                 .font(.system(size: 15))
-                                .foregroundColor(appState.effectivelyGuided ? SeekTheme.maroonAccent : SeekTheme.textPrimary)
+                                .foregroundColor(appState.effectivelyGuided ? SeekTheme.onAccentText : SeekTheme.textPrimary)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
                                 .background(
                                     appState.effectivelyGuided ?
-                                    SeekTheme.maroonAccent.opacity(0.1) :
+                                    SeekTheme.maroonAccent :
                                     Color(.secondarySystemBackground)
                                 )
                                 .cornerRadius(8)

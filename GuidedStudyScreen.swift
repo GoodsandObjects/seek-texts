@@ -77,6 +77,12 @@ struct ChatMessage: Identifiable, Equatable {
     }
 }
 
+struct DisplayChatMessage: Identifiable {
+    let id: String
+    let content: String
+    let isUser: Bool
+}
+
 // MARK: - Guided Study View Model
 
 @MainActor
@@ -874,7 +880,7 @@ struct GuidedStudyScreen: View {
                     ScrollViewReader { proxy in
                         ScrollView {
                             LazyVStack(spacing: 16) {
-                                ForEach(viewModel.visibleMessages) { message in
+                                ForEach(displayMessages) { message in
                                     ChatBubble(message: message)
                                         .id(message.id)
                                 }
@@ -899,7 +905,7 @@ struct GuidedStudyScreen: View {
                         }
                         .onChange(of: viewModel.messages.count) { _, _ in
                             withAnimation {
-                                if let lastMessage = viewModel.messages.last {
+                                if let lastMessage = displayMessages.last {
                                     proxy.scrollTo(lastMessage.id, anchor: .bottom)
                                 }
                             }
@@ -1063,6 +1069,106 @@ struct GuidedStudyScreen: View {
             }
         }
         return nil
+    }
+
+    private var displayMessages: [DisplayChatMessage] {
+        viewModel.visibleMessages.flatMap { message in
+            let normalized = normalizeAssistantContent(message.content, isUser: message.isUser)
+            let chunks = splitAssistantIntoBubblesIfNeeded(normalized, isUser: message.isUser)
+            return chunks.enumerated().map { index, chunk in
+                let suffix = index == 0 ? "" : "-\(index)"
+                return DisplayChatMessage(
+                    id: "\(message.id.uuidString)\(suffix)",
+                    content: chunk,
+                    isUser: message.isUser
+                )
+            }
+        }
+    }
+
+    private func normalizeAssistantContent(_ text: String, isUser: Bool) -> String {
+        guard !isUser else { return text }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return text }
+        guard !trimmed.contains("\n") else { return text }
+        guard trimmed.count > 420 else { return text }
+        guard !containsMarkdownBlockSyntax(trimmed) else { return text }
+
+        let sentences = splitSentences(trimmed)
+        guard sentences.count >= 3 else { return text }
+
+        var paragraphs: [String] = []
+        var cursor = 0
+        while cursor < sentences.count {
+            let end = min(cursor + 2, sentences.count)
+            paragraphs.append(sentences[cursor..<end].joined(separator: " "))
+            cursor = end
+        }
+        return paragraphs.joined(separator: "\n\n")
+    }
+
+    private func splitAssistantIntoBubblesIfNeeded(_ text: String, isUser: Bool) -> [String] {
+        guard !isUser else { return [text] }
+        guard text.count > 1800 else { return [text] }
+        guard !containsMarkdownBlockSyntax(text) else { return [text] }
+
+        let paragraphs = text
+            .components(separatedBy: "\n\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard paragraphs.count >= 2 else { return [text] }
+
+        let targetChunkSize = max(700, text.count / 3)
+        var chunks: [String] = []
+        var current: [String] = []
+        var currentCount = 0
+
+        for paragraph in paragraphs {
+            let nextCount = currentCount + paragraph.count + (current.isEmpty ? 0 : 2)
+            if !current.isEmpty && nextCount > targetChunkSize && chunks.count < 2 {
+                chunks.append(current.joined(separator: "\n\n"))
+                current = [paragraph]
+                currentCount = paragraph.count
+            } else {
+                current.append(paragraph)
+                currentCount = nextCount
+            }
+        }
+
+        if !current.isEmpty {
+            chunks.append(current.joined(separator: "\n\n"))
+        }
+
+        return chunks.count > 1 ? chunks : [text]
+    }
+
+    private func containsMarkdownBlockSyntax(_ text: String) -> Bool {
+        if text.contains("```") { return true }
+        if text.contains("\n") {
+            let pattern = #"(?m)^\s{0,3}(([-*+]\s)|(\d+\.\s)|(#)|(\>))"#
+            return text.range(of: pattern, options: .regularExpression) != nil
+        }
+        return false
+    }
+
+    private func splitSentences(_ text: String) -> [String] {
+        let pattern = #"[^.!?]+[.!?]["')\]]*"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            return [text]
+        }
+
+        let nsRange = NSRange(text.startIndex..<text.endIndex, in: text)
+        let matches = regex.matches(in: text, options: [], range: nsRange)
+        guard !matches.isEmpty else { return [text] }
+
+        let sentences = matches.compactMap { match -> String? in
+            guard let range = Range(match.range, in: text) else { return nil }
+            let sentence = text[range].trimmingCharacters(in: .whitespacesAndNewlines)
+            return sentence.isEmpty ? nil : sentence
+        }
+
+        return sentences.isEmpty ? [text] : sentences
     }
 
     private func handleShareTapped() {
@@ -1497,17 +1603,16 @@ private struct SaveConfirmationBanner: View {
 // MARK: - Chat Bubble
 
 struct ChatBubble: View {
-    let message: ChatMessage
+    let message: DisplayChatMessage
 
     var body: some View {
         HStack {
             if message.isUser { Spacer(minLength: 60) }
 
             VStack(alignment: message.isUser ? .trailing : .leading, spacing: 4) {
-                Text(message.content)
-                    .font(.system(size: 15))
+                messageContent
                     .foregroundColor(message.isUser ? SeekTheme.onAccentText : SeekTheme.textPrimary)
-                    .lineSpacing(4)
+                    .tint(SeekTheme.maroonAccent)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
                     .background(message.isUser ? SeekTheme.maroonAccent : SeekTheme.cardBackground)
@@ -1516,6 +1621,38 @@ struct ChatBubble: View {
             }
 
             if !message.isUser { Spacer(minLength: 60) }
+        }
+    }
+
+    @ViewBuilder
+    private var messageContent: some View {
+        if message.isUser {
+            Text(message.content)
+                .font(.system(size: 15))
+                .lineSpacing(4)
+        } else if let markdown = markdownAttributedContent {
+            Text(markdown)
+                .font(.system(size: 15))
+                .lineSpacing(3)
+                .multilineTextAlignment(.leading)
+        } else {
+            Text(message.content)
+                .font(.system(size: 15))
+                .lineSpacing(3)
+        }
+    }
+
+    private var markdownAttributedContent: AttributedString? {
+        do {
+            return try AttributedString(
+                markdown: message.content,
+                options: AttributedString.MarkdownParsingOptions(
+                    interpretedSyntax: .full,
+                    failurePolicy: .returnPartiallyParsedIfPossible
+                )
+            )
+        } catch {
+            return nil
         }
     }
 }

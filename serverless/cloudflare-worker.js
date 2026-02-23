@@ -30,6 +30,7 @@ const SYSTEM_PROMPT = [
   "Never provide methods or step-by-step instructions for harmful or illegal acts.",
   "Format for readability: keep paragraphs short (1-2 sentences) with a blank line between paragraphs.",
   "Use bullets sparingly when listing ideas; avoid dense walls of text.",
+  "Avoid long numbered essays unless the user explicitly asks for that format.",
   "When helpful, use brief section headings such as Plain meaning, Key ideas, and Reflection.",
 ].join("\\n");
 
