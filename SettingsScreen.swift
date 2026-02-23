@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct SettingsScreen: View {
     @EnvironmentObject var appState: AppState
@@ -23,38 +24,6 @@ struct SettingsScreen: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // Appearance Section
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Appearance")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(SeekTheme.textSecondary)
-                        .textCase(.uppercase)
-                        .tracking(0.5)
-                        .padding(.horizontal, 4)
-
-                    VStack(spacing: 0) {
-                        HStack {
-                            Text("Mode")
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(SeekTheme.textPrimary)
-
-                            Spacer(minLength: 16)
-
-                            Picker("Appearance Mode", selection: $appSettings.appearanceMode) {
-                                ForEach(AppearanceMode.allCases) { mode in
-                                    Text(mode.title).tag(mode)
-                                }
-                            }
-                            .pickerStyle(.segmented)
-                            .frame(maxWidth: 280)
-                        }
-                        .padding(16)
-                    }
-                    .background(SeekTheme.cardBackground)
-                    .cornerRadius(14)
-                    .shadow(color: SeekTheme.cardShadow, radius: 6, x: 0, y: 2)
-                }
-
                 // Account Section
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Account")
@@ -74,17 +43,40 @@ struct SettingsScreen: View {
 
                             Text(appState.effectivelyGuided ? "Active" : "Free")
                                 .font(.system(size: 15))
-                                .foregroundColor(appState.effectivelyGuided ? SeekTheme.maroonAccent : SeekTheme.textSecondary)
+                                .foregroundColor(appState.effectivelyGuided ? SeekTheme.maroonAccent : SeekTheme.textPrimary)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
                                 .background(
                                     appState.effectivelyGuided ?
                                     SeekTheme.maroonAccent.opacity(0.1) :
-                                    SeekTheme.creamBackground
+                                    Color(.secondarySystemBackground)
                                 )
                                 .cornerRadius(8)
                         }
                         .padding(16)
+
+                        if appState.effectivelyGuided {
+                            Divider()
+                                .padding(.leading, 16)
+
+                            Button {
+                                guard let url = URL(string: "https://apps.apple.com/account/subscriptions") else { return }
+                                UIApplication.shared.open(url)
+                            } label: {
+                                HStack {
+                                    Text("Manage Subscription")
+                                        .font(.system(size: 16, weight: .medium))
+                                        .foregroundColor(SeekTheme.maroonAccent)
+
+                                    Spacer()
+
+                                    Image(systemName: "arrow.up.right")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(SeekTheme.maroonAccent)
+                                }
+                                .padding(16)
+                            }
+                        }
                     }
                     .background(SeekTheme.cardBackground)
                     .cornerRadius(14)
@@ -204,6 +196,53 @@ struct SettingsScreen: View {
                             Text(appVersion)
                                 .font(.system(size: 15))
                                 .foregroundColor(SeekTheme.textSecondary)
+                        }
+                        .padding(16)
+                    }
+                    .background(SeekTheme.cardBackground)
+                    .cornerRadius(14)
+                    .shadow(color: SeekTheme.cardShadow, radius: 6, x: 0, y: 2)
+                }
+
+                // Preferences Section
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Preferences")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(SeekTheme.textSecondary)
+                        .textCase(.uppercase)
+                        .tracking(0.5)
+                        .padding(.horizontal, 4)
+
+                    VStack(spacing: 0) {
+                        HStack {
+                            Text("Appearance")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(SeekTheme.textPrimary)
+
+                            Spacer()
+
+                            Menu {
+                                ForEach(AppearanceMode.allCases) { mode in
+                                    Button {
+                                        appSettings.appearanceMode = mode
+                                    } label: {
+                                        if appSettings.appearanceMode == mode {
+                                            Label(mode.title, systemImage: "checkmark")
+                                        } else {
+                                            Text(mode.title)
+                                        }
+                                    }
+                                }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Text(appSettings.appearanceMode.title)
+                                        .font(.system(size: 15))
+                                        .foregroundColor(SeekTheme.textSecondary)
+                                    Image(systemName: "chevron.up.chevron.down")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundColor(SeekTheme.textSecondary)
+                                }
+                            }
                         }
                         .padding(16)
                     }
