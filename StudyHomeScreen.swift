@@ -9,13 +9,78 @@ struct StudyHomeScreen: View {
     @State private var isPreparingLaunch = false
     @State private var lastReadingState: LastReadingState?
     @State private var inlineChatText = ""
+    @State private var recentConversationLastUserPreview = ""
 
-    private let promptSuggestions = [
-        "Explore the context of this passage",
-        "Summarize what is happening here",
-        "Help me reflect on this",
-        "Identify themes in this passage"
+    private let universalStarterPrompts = [
+        "Help me get started",
+        "What should I explore next?",
+        "Explain a core idea simply",
+        "How do I begin a daily reading habit?"
     ]
+
+    private let passageStarterPrompts = [
+        "What is happening here?",
+        "Clarify key ideas",
+        "What should I notice?",
+        "How is this understood in its tradition?"
+    ]
+
+    private let continuationPrompts = [
+        "Continue from where we left off",
+        "Summarize what we've covered",
+        "Ask me a question to deepen this",
+        "Give me one takeaway and one next question"
+    ]
+    
+    private var recentConversation: StudyConversation? {
+        studyStore.conversations.first
+    }
+
+    private enum PromptSuggestionMode {
+        case startHere
+        case passageStart
+        case continueSession
+    }
+
+    private var promptSuggestionMode: PromptSuggestionMode {
+        if appState.selectedPassage != nil {
+            return .passageStart
+        }
+        if recentConversation != nil {
+            return .continueSession
+        }
+        return .startHere
+    }
+
+    private var promptSuggestions: [String] {
+        switch promptSuggestionMode {
+        case .startHere:
+            return universalStarterPrompts
+        case .passageStart:
+            return passageStarterPrompts
+        case .continueSession:
+            return continuationPrompts
+        }
+    }
+
+    private var promptsSectionTitle: String {
+        switch promptSuggestionMode {
+        case .startHere:
+            return "Start here"
+        case .passageStart:
+            return "From this passage"
+        case .continueSession:
+            return "Continue your study"
+        }
+    }
+
+    private var chipsHeaderFont: Font {
+        .system(size: recentConversation == nil ? 15 : 13, weight: .semibold)
+    }
+
+    private var chipsSectionSpacing: CGFloat {
+        recentConversation == nil ? 10 : 8
+    }
 
     var body: some View {
         ScrollView {
@@ -25,7 +90,7 @@ struct StudyHomeScreen: View {
                         .font(.system(size: 34, weight: .bold))
                         .foregroundColor(SeekTheme.textPrimary)
 
-                    Text("A guided companion for reflection and learning.")
+                    Text("A guided companion for focused study and learning.")
                         .font(.system(size: 16))
                         .foregroundColor(SeekTheme.textSecondary)
                         .lineLimit(1)
@@ -33,69 +98,69 @@ struct StudyHomeScreen: View {
                 }
                 .padding(.top, 12)
 
-                if let state = lastReadingState {
-                    continueReadingCard(state: state)
-                }
-
-                if libraryData.loadState != .loaded {
-                    libraryStatusBanner
-                }
-
-                VStack(spacing: 10) {
-                    Button {
-                        startGuidedStudy()
-                    } label: {
-                        HStack(spacing: 10) {
-                            if isPreparingLaunch {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: SeekTheme.onAccentText))
-                            }
-                            Text("Start Guided Study")
-                                .font(.system(size: 16, weight: .semibold))
-                        }
-                        .foregroundColor(SeekTheme.onAccentText)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(SeekTheme.maroonAccent)
-                        .cornerRadius(12)
-                    }
-                    .disabled(isPreparingLaunch)
+                if let conversation = recentConversation {
+                    resumeStudyCard(conversation)
                 }
 
                 inlineChatComposer
 
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Try a prompt")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(SeekTheme.textPrimary)
+                VStack(alignment: .leading, spacing: chipsSectionSpacing) {
+                    Text(promptsSectionTitle)
+                        .font(chipsHeaderFont)
+                        .foregroundColor(SeekTheme.textSecondary)
 
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                         ForEach(promptSuggestions, id: \.self) { prompt in
                             Button {
-                                startGuidedStudy(prompt: prompt)
+                                handlePromptSelection(prompt)
                             } label: {
-                                Text(prompt)
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundColor(SeekTheme.maroonAccent)
-                                    .multilineTextAlignment(.leading)
-                                    .lineLimit(2)
-                                    .frame(maxWidth: .infinity, minHeight: 64, alignment: .topLeading)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 12)
-                                    .background(SeekTheme.maroonAccent.opacity(0.08))
-                                    .cornerRadius(10)
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Image(systemName: "quote.bubble")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundColor(Brand.primaryAccent.opacity(0.85))
+
+                                    Text(prompt)
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundColor(SeekTheme.textPrimary)
+                                        .multilineTextAlignment(.leading)
+                                        .lineLimit(2)
+                                }
+                                .frame(maxWidth: .infinity, minHeight: 56, alignment: .topLeading)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 10)
+                                .background(SeekTheme.cardBackground)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke(Brand.borderSubtle.opacity(0.36), lineWidth: 1)
+                                )
+                                .cornerRadius(10)
                             }
                             .disabled(isPreparingLaunch)
                         }
                     }
                 }
 
-                Spacer(minLength: 16)
+                HStack {
+                    Spacer()
+                    Button {
+                        choosePassage()
+                    } label: {
+                        Label("Choose passage", systemImage: "book")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(SeekTheme.textSecondary)
+                    }
+                    .disabled(isPreparingLaunch)
+                }
+
+                if libraryData.loadState != .loaded {
+                    libraryStatusBanner
+                }
+
             }
             .padding(.horizontal, SeekTheme.screenHorizontalPadding)
             .padding(.bottom, 24)
         }
-        .themedScreenBackground()
+        .background(Brand.backgroundPrimary.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(item: $activeLaunch) { launch in
             GuidedStudyScreen(
@@ -111,6 +176,7 @@ struct StudyHomeScreen: View {
         }
         .onAppear {
             refreshLastReadingState()
+            refreshLastUserMessagePreview()
         }
         .task {
             if libraryData.traditions.isEmpty {
@@ -118,6 +184,10 @@ struct StudyHomeScreen: View {
             }
             await GuidedSearchManager.shared.warmIndex(with: libraryData.traditions)
             refreshLastReadingState()
+            refreshLastUserMessagePreview()
+        }
+        .onChange(of: recentConversation?.id) { _, _ in
+            refreshLastUserMessagePreview()
         }
     }
 
@@ -175,43 +245,56 @@ struct StudyHomeScreen: View {
         }
     }
 
-    private func continueReadingCard(state: LastReadingState) -> some View {
-        NavigationLink(value: AppRoute.reader(makeReaderDestination(from: state))) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .center, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("\(displayBookName(for: state)) \(state.chapter)")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundColor(SeekTheme.textPrimary)
-                            .lineLimit(1)
+    private func resumeStudyCard(_ conversation: StudyConversation) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(continueCardTitle(for: conversation))
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(SeekTheme.textPrimary)
+                    .lineLimit(1)
 
-                        Text("Last opened \(relativeTimeString(since: state.timestamp))")
-                            .font(.system(size: 13))
-                            .foregroundColor(SeekTheme.textSecondary)
-                    }
+                Spacer()
 
-                    Spacer()
-
-                    Text("Resume")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(SeekTheme.onAccentText)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(SeekTheme.maroonAccent)
-                        .cornerRadius(10)
-                }
+                Text("Updated \(relativeTimeString(since: conversation.updatedAt))")
+                    .font(.system(size: 12))
+                    .foregroundColor(SeekTheme.textSecondary)
             }
-            .contentShape(Rectangle())
-            .padding(16)
-            .background(SeekTheme.cardBackground)
-            .cornerRadius(14)
+
+            Text("Last: \(continueCardLastPromptPreview(for: conversation))")
+                .font(.system(size: 14))
+                .foregroundColor(SeekTheme.textSecondary)
+                .lineLimit(1)
+
+            Button {
+                continueConversation(conversation)
+            } label: {
+                Text("Continue Study")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(SeekTheme.onAccentText)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(SeekTheme.maroonAccent)
+                    .cornerRadius(10)
+            }
+            .disabled(isPreparingLaunch)
         }
-        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            continueConversation(conversation)
+        }
+        .padding(16)
+        .background(SeekTheme.cardBackground)
+        .cornerRadius(14)
     }
 
     private var inlineChatComposer: some View {
         HStack(alignment: .center, spacing: 10) {
-            TextField("Start a guided study…", text: $inlineChatText, axis: .vertical)
+            TextField(
+                "",
+                text: $inlineChatText,
+                prompt: Text("Ask a question").foregroundColor(SeekTheme.textSecondary),
+                axis: .vertical
+            )
                 .font(.system(size: 15))
                 .foregroundColor(SeekTheme.textPrimary)
                 .lineLimit(1...2)
@@ -230,12 +313,12 @@ struct StudyHomeScreen: View {
                     .foregroundColor(
                         inlineChatText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isPreparingLaunch
                         ? SeekTheme.textSecondary.opacity(0.55)
-                        : SeekTheme.maroonAccent
+                        : SeekTheme.textPrimary.opacity(0.78)
                     )
                     .background(
                         (inlineChatText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isPreparingLaunch
-                         ? SeekTheme.creamBackground.opacity(0.5)
-                         : SeekTheme.creamBackground.opacity(0.75))
+                         ? Brand.surfaceSecondary.opacity(0.55)
+                         : Brand.surfaceSecondary)
                     )
                     .clipShape(Circle())
             }
@@ -243,33 +326,22 @@ struct StudyHomeScreen: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 9)
-        .background(SeekTheme.cardBackground)
+        .background(Brand.surfacePrimary)
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        )
         .cornerRadius(14)
     }
 
-    private func startGuidedStudy(prompt: String? = nil) {
-        Task {
-            await prepareLaunch(
-                existingConversation: nil,
-                initialPrompt: prompt,
-                initialInputText: nil,
-                showPassagePickerOnAppear: prompt == nil,
-                autoFocusInputOnAppear: false,
-                avoidScriptureFallback: false
-            )
-        }
-    }
-
-    private func sendInlineChatEntry() {
-        let trimmed = inlineChatText.trimmingCharacters(in: .whitespacesAndNewlines)
+    private func sendInlineChatEntry(prefilledText: String? = nil) {
+        let sourceText = prefilledText ?? inlineChatText
+        let trimmed = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        let resumeConversation = studyStore.conversations.first { conversation in
-            if case .general = conversation.context {
-                return true
-            }
-            return false
-        }
-        let targetConversation = resumeConversation ?? studyStore.createGeneralConversation()
+        let targetConversation = createNewInlineConversation()
+        #if DEBUG
+        print("[StudyHome] New chat created: \(targetConversation.id.uuidString)")
+        #endif
 
         Task {
             await prepareLaunch(
@@ -286,15 +358,84 @@ struct StudyHomeScreen: View {
         }
     }
 
-    private func makeReaderDestination(from state: LastReadingState) -> ReaderDestination {
-        let bookName = displayBookName(for: state)
-        return ReaderDestination(
-            scriptureId: state.scriptureId ?? "bible-kjv",
-            bookId: state.bookId,
-            chapter: state.chapter,
-            bookName: bookName,
-            verseStart: state.verseStart,
-            verseEnd: state.verseEnd
+    private func choosePassage() {
+        Task {
+            await prepareLaunch(
+                existingConversation: nil,
+                initialPrompt: nil,
+                initialInputText: nil,
+                showPassagePickerOnAppear: true,
+                autoFocusInputOnAppear: false,
+                avoidScriptureFallback: false
+            )
+        }
+    }
+
+    private func continueConversation(_ conversation: StudyConversation) {
+        Task {
+            await prepareLaunch(
+                existingConversation: conversation,
+                initialPrompt: nil,
+                initialInputText: nil,
+                showPassagePickerOnAppear: false,
+                autoFocusInputOnAppear: false,
+                avoidScriptureFallback: true
+            )
+        }
+    }
+
+    private func continueConversation(_ conversation: StudyConversation, with prompt: String) {
+        let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPrompt.isEmpty else {
+            continueConversation(conversation)
+            return
+        }
+
+        Task {
+            await prepareLaunch(
+                existingConversation: conversation,
+                initialPrompt: trimmedPrompt,
+                initialInputText: nil,
+                showPassagePickerOnAppear: false,
+                autoFocusInputOnAppear: true,
+                avoidScriptureFallback: true
+            )
+        }
+    }
+
+    private func handlePromptSelection(_ prompt: String) {
+        switch promptSuggestionMode {
+        case .continueSession:
+            if let conversation = recentConversation {
+                continueConversation(conversation, with: prompt)
+            } else {
+                sendInlineChatEntry(prefilledText: prompt)
+            }
+        case .startHere, .passageStart:
+            sendInlineChatEntry(prefilledText: prompt)
+        }
+    }
+
+    private func createNewInlineConversation() -> StudyConversation {
+        guard let selectedPassage = appState.selectedPassage else {
+            return studyStore.createGeneralConversation()
+        }
+
+        let verseStart = selectedPassage.verseRange?.lowerBound ?? selectedPassage.verseNumber
+        let verseEnd = selectedPassage.verseRange?.upperBound ?? selectedPassage.verseNumber
+        let fallbackTitle = selectedPassage.reference.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? "\(selectedPassage.book) \(selectedPassage.chapter)"
+            : selectedPassage.reference
+
+        return studyStore.createConversation(
+            StudyPassageRef(
+                scriptureId: selectedPassage.scriptureId,
+                bookId: normalizeBookId(selectedPassage.book),
+                chapter: selectedPassage.chapter,
+                verseStart: verseStart,
+                verseEnd: verseEnd,
+                fallbackTitle: fallbackTitle
+            )
         )
     }
 
@@ -302,15 +443,69 @@ struct StudyHomeScreen: View {
         lastReadingState = LastReadingStore.loadLastReadingState()
     }
 
-    private func displayBookName(for state: LastReadingState) -> String {
-        if let scriptureId = state.scriptureId,
-           let book = libraryData.getBook(scriptureId: scriptureId, bookId: state.bookId) {
-            return book.name
+    private func refreshLastUserMessagePreview() {
+        guard let conversation = recentConversation else {
+            recentConversationLastUserPreview = ""
+            return
         }
-        return state.bookId
-            .split(separator: "-")
-            .map { $0.capitalized }
-            .joined(separator: " ")
+
+        let messages = studyStore.loadMessages(conversationId: conversation.id)
+        if let lastUserMessage = messages.reversed().first(where: { $0.role == "user" })?.content {
+            recentConversationLastUserPreview = normalizedPreview(lastUserMessage)
+        } else {
+            recentConversationLastUserPreview = "No question yet"
+        }
+    }
+
+    private func continueCardTitle(for conversation: StudyConversation) -> String {
+        if case .passage(let scriptureRef) = conversation.context {
+            let display = scriptureRef.display.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !display.isEmpty {
+                return display
+            }
+        }
+
+        guard !conversation.bookId.isEmpty, conversation.chapter > 0 else {
+            return "Guided Study"
+        }
+
+        let bookName: String
+        if !conversation.scriptureId.isEmpty,
+           let book = libraryData.getBook(scriptureId: conversation.scriptureId, bookId: conversation.bookId) {
+            bookName = book.name
+        } else {
+            bookName = conversation.bookId
+                .split(separator: "-")
+                .map { $0.capitalized }
+                .joined(separator: " ")
+        }
+
+        return "\(bookName) \(conversation.chapter)"
+    }
+
+    private func continueCardLastPromptPreview(for conversation: StudyConversation) -> String {
+        if recentConversation?.id == conversation.id, !recentConversationLastUserPreview.isEmpty {
+            return recentConversationLastUserPreview
+        }
+        return "No question yet"
+    }
+
+    private func normalizedPreview(_ text: String) -> String {
+        let normalized = text
+            .replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !normalized.isEmpty else {
+            return "No question yet"
+        }
+
+        let limit = 72
+        if normalized.count <= limit {
+            return normalized
+        }
+
+        let endIndex = normalized.index(normalized.startIndex, offsetBy: limit)
+        return "\(normalized[..<endIndex])…"
     }
 
     private func relativeTimeString(since date: Date) -> String {

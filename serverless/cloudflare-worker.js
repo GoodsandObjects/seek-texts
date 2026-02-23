@@ -28,7 +28,10 @@ const SYSTEM_PROMPT = [
   "Use clean language: no profanity, vulgarity, sexualized, or aggressive phrasing.",
   "If asked for self-harm, violence, or illegal wrongdoing instructions, refuse and redirect to safety.",
   "Never provide methods or step-by-step instructions for harmful or illegal acts.",
-  "Format for readability: keep paragraphs short (1-2 sentences) with a blank line between paragraphs.",
+  "Start with a plain-language answer in 1-2 sentences.",
+  "Then expand with 2-4 short paragraphs or concise bullets.",
+  "Keep paragraphs short (1-3 sentences) with a blank line between paragraphs.",
+  "Use clean punctuation and always leave a space after sentence-ending punctuation.",
   "Use bullets sparingly when listing ideas; avoid dense walls of text.",
   "Avoid long numbered essays unless the user explicitly asks for that format.",
   "When helpful, use brief section headings such as Plain meaning, Key ideas, and Reflection.",
@@ -104,10 +107,6 @@ async function handleGuidedStudy(request, env) {
   const passageText = sanitizeText(passageTextRaw, MAX_PASSAGE_LENGTH);
   const locale = sanitizeText(typeof localeRaw === "string" ? localeRaw : "en-US", MAX_LOCALE_LENGTH);
 
-  if (!scriptureRef && !passageText) {
-    return jsonResponse({ error: "Missing scripture context." }, 400, request, env);
-  }
-
   if (!Array.isArray(messagesRaw) || messagesRaw.length === 0) {
     return jsonResponse({ error: "Messages are required." }, 400, request, env);
   }
@@ -142,11 +141,19 @@ async function handleGuidedStudy(request, env) {
     return jsonResponse({ error: "No valid messages found." }, 400, request, env);
   }
 
+  const hasUserMessage = history.some((message) => message.role === "user");
+  const isGeneralModeRequest = !scriptureRef && !passageText;
+  if (isGeneralModeRequest && !hasUserMessage) {
+    return jsonResponse({ error: "General study requests require at least one user message." }, 400, request, env);
+  }
+
+  const normalizedScriptureRef = scriptureRef || "General question";
+  const normalizedPassageText = passageText || "";
   const latestUserMessage = [...history].reverse().find((m) => m.role === "user")?.content || "";
 
   const moderationInput = [
-    `Scripture Reference: ${scriptureRef}`,
-    `Passage Text: ${passageText}`,
+    `Scripture Reference: ${normalizedScriptureRef}`,
+    `Passage Text: ${normalizedPassageText}`,
     `Latest User Message: ${latestUserMessage}`,
   ].join("\\n");
 
@@ -160,8 +167,8 @@ async function handleGuidedStudy(request, env) {
     {
       role: "user",
       content: [
-        `Scripture Reference: ${scriptureRef}`,
-        `Passage Text: ${passageText}`,
+        `Scripture Reference: ${normalizedScriptureRef}`,
+        `Passage Text: ${normalizedPassageText}`,
         `Locale: ${locale || "en-US"}`,
       ].join("\\n"),
     },
@@ -194,7 +201,7 @@ async function handleGuidedStudy(request, env) {
 
   const completionData = await completionResponse.json();
   const rawReply = completionData?.choices?.[0]?.message?.content;
-  const replyText = sanitizeText(rawReply, MAX_REPLY_LENGTH);
+  const replyText = sanitizeReplyText(rawReply, MAX_REPLY_LENGTH);
 
   if (!replyText) {
     return jsonResponse({ error: "Proxy returned an empty reply." }, 502, request, env);
@@ -271,6 +278,28 @@ function sanitizeText(input, maxLength) {
     .replace(/\s+/g, " ")
     .trim();
   return truncate(cleaned, maxLength);
+}
+
+function sanitizeReplyText(input, maxLength) {
+  if (typeof input !== "string") return "";
+
+  const normalizedLines = input
+    .replace(/\r\n?/g, "\n")
+    .replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, "")
+    .split("\n")
+    .map((line) => line.replace(/[ \t]+/g, " ").trim());
+
+  const withParagraphBreaks = normalizedLines
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  const spacedPunctuation = withParagraphBreaks.replace(
+    /([.!?;:])([A-Za-z\u00C0-\u024F])/g,
+    "$1 $2"
+  );
+
+  return truncate(spacedPunctuation, maxLength);
 }
 
 function truncate(value, maxLength) {

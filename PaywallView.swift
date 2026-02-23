@@ -1,12 +1,10 @@
 import SwiftUI
 import UIKit
-import StoreKit
 
 struct PaywallView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @StateObject private var viewModel = PaywallViewModel()
-    @ObservedObject private var storeManager = StoreManager.shared
     @State private var showSuccessState = false
     @State private var successPulse = false
 
@@ -53,7 +51,7 @@ struct PaywallView: View {
         [
             "Unlimited notes and highlights",
             "Unlimited Guided Study",
-            "Revisit your notes anytime"
+            "Unlimited share cards"
         ]
     }
 
@@ -185,11 +183,7 @@ struct PaywallView: View {
         } message: {
             Text(viewModel.errorMessage ?? "")
         }
-        .task {
-            if storeManager.products.isEmpty {
-                await storeManager.fetchProducts()
-            }
-        }
+        .task { await viewModel.loadProductsIfNeeded() }
     }
 
     @ViewBuilder
@@ -233,27 +227,12 @@ struct PaywallView: View {
         .buttonStyle(.plain)
     }
 
-    private func product(for plan: SubscriptionPlan) -> StoreKit.Product? {
-        let id = (plan == .annual) ? StoreManager.annualProductID : StoreManager.monthlyProductID
-        return storeManager.products.first(where: { $0.id == id })
-    }
-
     private func priceText(for plan: SubscriptionPlan) -> String {
-        guard let product = product(for: plan) else {
-            return "Price unavailable"
-        }
-
-        switch plan {
-        case .annual:
-            return "\(product.displayPrice) per year"
-        case .monthly:
-            return "\(product.displayPrice) per month"
-        }
+        viewModel.priceText(for: plan)
     }
 
     private func priceDetailText(for plan: SubscriptionPlan) -> String {
-        guard plan == .annual else { return "" }
-        return product(for: plan) == nil ? "Billed annually" : "Auto-renews yearly"
+        viewModel.priceDetailText(for: plan)
     }
 
     @ViewBuilder

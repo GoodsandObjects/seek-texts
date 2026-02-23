@@ -112,6 +112,9 @@ class GuidedStudyViewModel: ObservableObject {
 
     Take a moment to read through the text. When you're ready, choose a prompt below or share what's on your mind.
     """
+    private var trimmedWelcomeMessageText: String {
+        welcomeMessageText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
     private weak var appState: AppState?
     private var currentConversation: StudyConversation?
@@ -195,6 +198,8 @@ class GuidedStudyViewModel: ObservableObject {
                 }
             }
         }
+
+        maybeRespondToPendingUserMessage()
     }
 
     private func loadConversation(_ conversation: StudyConversation) {
@@ -288,6 +293,20 @@ class GuidedStudyViewModel: ObservableObject {
             return messages
         }
         return Array(messages.dropFirst())
+    }
+
+    var hasUserMessages: Bool {
+        messages.contains(where: { $0.isUser })
+    }
+
+    var hasAssistantMessages: Bool {
+        messages.contains { message in
+            !isWelcomeAssistantMessage(message)
+        }
+    }
+
+    var shouldShowStarterPrompts: Bool {
+        !hasUserMessages && !hasAssistantMessages && !isTyping
     }
 
     var scopeLabel: String {
@@ -522,30 +541,14 @@ class GuidedStudyViewModel: ObservableObject {
                 display: passage.reference
             ))
 
-            let verseStart = resolvedScope == .range ? safeRange?.lowerBound : nil
-            let verseEnd = resolvedScope == .range ? safeRange?.upperBound : nil
-
-            if let conversationId = currentConversation?.id {
-                studyStore.updateConversationPassage(
-                    conversationId: conversationId,
-                    scriptureId: selection.scriptureId,
-                    bookId: selection.bookId,
-                    chapter: selection.chapterNumber,
-                    verseStart: verseStart,
-                    verseEnd: verseEnd,
-                    fallbackTitle: currentReference
-                )
-            } else {
-                let passageRef = makePassageRef()
-                if let conversation = studyStore.fetchConversationForPassage(passageRef) {
-                    messages = []
-                    loadConversation(conversation)
-                } else {
-                    messages = []
-                    currentConversation = studyStore.createConversation(passageRef)
-                    addWelcomeMessage()
-                }
-            }
+            messages = []
+            currentConversation = studyStore.createConversation(makePassageRef())
+            addWelcomeMessage()
+            pendingMessageAfterUnlock = nil
+            lastFailedMessageText = nil
+            lastFailedConversationID = nil
+            showServiceUnavailableError = false
+            isTyping = false
         } catch {
             messages.append(ChatMessage(
                 content: "I couldn't load that passage right now. Please try another selection.",
@@ -554,7 +557,8 @@ class GuidedStudyViewModel: ObservableObject {
         }
     }
 
-    func sendMessage(_ text: String) {
+    func sendMessage(_ text: String) async {
+        guard !isTyping else { return }
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedText.isEmpty else { return }
         guard trimmedText.count <= maxUserMessageCharacters else {
@@ -565,50 +569,34 @@ class GuidedStudyViewModel: ObservableObject {
             ))
             return
         }
-        ensureConversationIfNeeded()
-        guard let conversationID = currentConversation?.id else { return }
-
         if !UsageLimitManager.shared.canPerform(.guidedStudyMessage) {
-            hasUsedFreeResponse = true
-            pendingMessageAfterUnlock = trimmedText
-            #if DEBUG
-            print("[GuidedStudy][ErrorBucket] paywall (quota exceeded)")
-            #endif
-            appState?.presentPaywall(.guidedStudyLimit, onUnlock: { [weak self] in
-                self?.completePremiumUnlock()
-            })
+            handleGuidedStudyLimitReached(pendingMessage: trimmedText)
             return
         }
         showServiceUnavailableError = false
         lastFailedMessageText = nil
         lastFailedConversationID = nil
 
-        messages.append(ChatMessage(content: trimmedText, isUser: true))
-        studyStore.appendMessage(
-            conversationId: conversationID,
-            message: StudyMessage(conversationId: conversationID, role: "user", content: trimmedText)
-        )
-        updateConversationTitleIfNeeded()
+        guard let conversationID = persistUserMessageForSending(trimmedText) else { return }
+        isTyping = true
 
-        Task {
-            await requestAssistantReply(
-                messageText: trimmedText,
-                conversationID: conversationID
-            )
-        }
+        await requestAssistantReply(
+            messageText: trimmedText,
+            conversationID: conversationID
+        )
     }
 
-    func retryLastRequest() {
+    func retryLastRequest() async {
+        guard !isTyping else { return }
         guard let messageText = lastFailedMessageText,
               let conversationID = lastFailedConversationID else { return }
         showServiceUnavailableError = false
+        isTyping = true
 
-        Task {
-            await requestAssistantReply(
-                messageText: messageText,
-                conversationID: conversationID
-            )
-        }
+        await requestAssistantReply(
+            messageText: messageText,
+            conversationID: conversationID
+        )
     }
 
     func completePremiumUnlock() {
@@ -616,7 +604,9 @@ class GuidedStudyViewModel: ObservableObject {
         refreshFreeLimitState()
         guard let pending = pendingMessageAfterUnlock else { return }
         pendingMessageAfterUnlock = nil
-        sendMessage(pending)
+        Task {
+            await sendMessage(pending)
+        }
     }
 
     private func refreshFreeLimitState() {
@@ -631,11 +621,72 @@ class GuidedStudyViewModel: ObservableObject {
         messages.compactMap { message in
             let trimmed = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return nil }
-            if !message.isUser && trimmed == welcomeMessageText.trimmingCharacters(in: .whitespacesAndNewlines) {
+            if isWelcomeAssistantMessage(message) {
                 return nil
             }
             return GuidedStudyChatMessage(role: message.isUser ? "user" : "assistant", content: trimmed)
         }
+    }
+
+    private func persistUserMessageForSending(_ messageText: String) -> UUID? {
+        ensureConversationIfNeeded()
+        guard let conversationID = currentConversation?.id else { return nil }
+
+        messages.append(ChatMessage(content: messageText, isUser: true))
+        studyStore.appendMessage(
+            conversationId: conversationID,
+            message: StudyMessage(conversationId: conversationID, role: "user", content: messageText)
+        )
+        updateConversationTitleIfNeeded()
+        return conversationID
+    }
+
+    private func isWelcomeAssistantMessage(_ message: ChatMessage) -> Bool {
+        guard !message.isUser else { return false }
+        let trimmed = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !trimmed.isEmpty && trimmed == trimmedWelcomeMessageText
+    }
+
+    private func maybeRespondToPendingUserMessage() {
+        guard !isTyping else { return }
+        guard let conversationID = currentConversation?.id else { return }
+        guard let pendingText = latestPendingUserMessageText() else { return }
+        guard UsageLimitManager.shared.canPerform(.guidedStudyMessage) else {
+            handleGuidedStudyLimitReached(pendingMessage: pendingText)
+            return
+        }
+
+        isTyping = true
+        Task {
+            await requestAssistantReply(
+                messageText: pendingText,
+                conversationID: conversationID
+            )
+        }
+    }
+
+    private func latestPendingUserMessageText() -> String? {
+        guard let latestUserIndex = messages.lastIndex(where: { $0.isUser }) else {
+            return nil
+        }
+        if let latestAssistantIndex = messages.lastIndex(where: { !isWelcomeAssistantMessage($0) }),
+           latestAssistantIndex > latestUserIndex {
+            return nil
+        }
+
+        let pending = messages[latestUserIndex].content.trimmingCharacters(in: .whitespacesAndNewlines)
+        return pending.isEmpty ? nil : pending
+    }
+
+    private func handleGuidedStudyLimitReached(pendingMessage: String) {
+        hasUsedFreeResponse = true
+        pendingMessageAfterUnlock = pendingMessage
+        #if DEBUG
+        print("[GuidedStudy][ErrorBucket] paywall (quota exceeded)")
+        #endif
+        appState?.presentPaywall(.guidedStudyLimit, onUnlock: { [weak self] in
+            self?.completePremiumUnlock()
+        })
     }
 
     private static func makeDefaultProvider() -> AIProvider {
@@ -670,7 +721,6 @@ class GuidedStudyViewModel: ObservableObject {
     }
 
     private func requestAssistantReply(messageText: String, conversationID: UUID) async {
-        isTyping = true
         do {
             let scriptureRefForProvider: String
             let passageTextForProvider: String
@@ -678,7 +728,7 @@ class GuidedStudyViewModel: ObservableObject {
                 scriptureRefForProvider = currentReference
                 passageTextForProvider = currentVerseText
             } else {
-                scriptureRefForProvider = ""
+                scriptureRefForProvider = "General Study"
                 passageTextForProvider = ""
             }
             let providerContext = GuidedStudyProviderContext(
@@ -724,10 +774,17 @@ class GuidedStudyViewModel: ObservableObject {
                         isUser: false
                     ))
                 } else {
-                    showServiceUnavailableError = true
+                    messages.append(ChatMessage(
+                        content: "I couldn’t complete that right now. Please try again.",
+                        isUser: false
+                    ))
                 }
             } else {
-                showServiceUnavailableError = true
+                showServiceUnavailableError = false
+                messages.append(ChatMessage(
+                    content: "I couldn’t complete that right now. Please try again.",
+                    isUser: false
+                ))
             }
 
             #if DEBUG
@@ -885,13 +942,13 @@ struct GuidedStudyScreen: View {
                                         .id(message.id)
                                 }
 
-                                if viewModel.visibleMessages.count <= 1 {
+                                if viewModel.shouldShowStarterPrompts {
                                     suggestedPromptsView
                                 }
 
                                 if viewModel.showServiceUnavailableError {
                                     GuidedStudyUnavailableInlineView {
-                                        viewModel.retryLastRequest()
+                                        Task { await viewModel.retryLastRequest() }
                                     }
                                 }
 
@@ -968,9 +1025,9 @@ struct GuidedStudyScreen: View {
             .sheet(isPresented: $showAllPrompts) {
                 MorePromptsSheet(
                     prompts: viewModel.suggestedPrompts,
-                    isLocked: viewModel.hasUsedFreeResponse
+                    isLocked: viewModel.hasUsedFreeResponse || viewModel.isTyping
                 ) { prompt in
-                    viewModel.sendMessage(prompt)
+                    Task { await viewModel.sendMessage(prompt) }
                 }
             }
             .confirmationDialog("Share", isPresented: $showShareOptions, titleVisibility: .visible) {
@@ -1038,7 +1095,7 @@ struct GuidedStudyScreen: View {
                 guard !hasSentInitialPrompt else { return }
                 guard let prompt = initialPrompt?.trimmingCharacters(in: .whitespacesAndNewlines), !prompt.isEmpty else { return }
                 hasSentInitialPrompt = true
-                viewModel.sendMessage(prompt)
+                Task { await viewModel.sendMessage(prompt) }
             }
             .onAppear {
                 guard showPassagePickerOnAppear else { return }
@@ -1088,14 +1145,17 @@ struct GuidedStudyScreen: View {
 
     private func normalizeAssistantContent(_ text: String, isUser: Bool) -> String {
         guard !isUser else { return text }
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return text }
-        guard !trimmed.contains("\n") else { return text }
-        guard trimmed.count > 420 else { return text }
-        guard !containsMarkdownBlockSyntax(trimmed) else { return text }
+        let originalTrimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !originalTrimmed.isEmpty else { return text }
+        guard !containsMarkdownBlockSyntax(originalTrimmed) else { return text }
+
+        let spacingNormalized = normalizeAssistantSpacing(text)
+        let trimmed = spacingNormalized.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.contains("\n") else { return spacingNormalized }
+        guard trimmed.count > 420 else { return spacingNormalized }
 
         let sentences = splitSentences(trimmed)
-        guard sentences.count >= 3 else { return text }
+        guard sentences.count >= 3 else { return spacingNormalized }
 
         var paragraphs: [String] = []
         var cursor = 0
@@ -1105,6 +1165,23 @@ struct GuidedStudyScreen: View {
             cursor = end
         }
         return paragraphs.joined(separator: "\n\n")
+    }
+
+    private func normalizeAssistantSpacing(_ text: String) -> String {
+        var normalized = text
+
+        normalized = normalized.replacingOccurrences(
+            of: #"(?<=[A-Za-z0-9\)\.\!\?])\n(?=[A-Za-z0-9])"#,
+            with: " ",
+            options: .regularExpression
+        )
+        normalized = normalized.replacingOccurrences(
+            of: #"(?<=[a-z\)][\.\!\?])(?=[A-Z])"#,
+            with: " ",
+            options: .regularExpression
+        )
+
+        return normalized
     }
 
     private func splitAssistantIntoBubblesIfNeeded(_ text: String, isUser: Bool) -> [String] {
@@ -1299,7 +1376,7 @@ struct GuidedStudyScreen: View {
         VStack(spacing: 10) {
             ForEach(Array(viewModel.suggestedPrompts.prefix(3)), id: \.self) { prompt in
                 Button {
-                    viewModel.sendMessage(prompt)
+                    Task { await viewModel.sendMessage(prompt) }
                 } label: {
                     Text(prompt)
                         .font(.system(size: 14, weight: .medium))
@@ -1310,7 +1387,7 @@ struct GuidedStudyScreen: View {
                         .background(SeekTheme.maroonAccent.opacity(0.08))
                         .cornerRadius(20)
                 }
-                .disabled(viewModel.hasUsedFreeResponse)
+                .disabled(viewModel.hasUsedFreeResponse || viewModel.isTyping)
             }
 
             if viewModel.suggestedPrompts.count > 3 {
@@ -1322,7 +1399,7 @@ struct GuidedStudyScreen: View {
                         .foregroundColor(SeekTheme.textSecondary)
                         .padding(.top, 2)
                 }
-                .disabled(viewModel.hasUsedFreeResponse)
+                .disabled(viewModel.hasUsedFreeResponse || viewModel.isTyping)
             }
         }
         .padding(.top, 8)
@@ -1342,16 +1419,25 @@ struct GuidedStudyScreen: View {
                         .cornerRadius(24)
                         .focused($isInputFocused)
                         .lineLimit(1...4)
+                        .disabled(viewModel.isTyping)
 
                     Button {
-                        viewModel.sendMessage(inputText)
+                        let outgoing = inputText
                         inputText = ""
+                        Task { await viewModel.sendMessage(outgoing) }
                     } label: {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 32))
-                            .foregroundColor(inputText.isEmpty ? SeekTheme.textSecondary : SeekTheme.maroonAccent)
+                        Group {
+                            if viewModel.isTyping {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: SeekTheme.textSecondary))
+                            } else {
+                                Image(systemName: "arrow.up.circle.fill")
+                                    .font(.system(size: 32))
+                                    .foregroundColor(inputText.isEmpty ? SeekTheme.textSecondary : SeekTheme.maroonAccent)
+                            }
+                        }
                     }
-                    .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isTyping)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
@@ -1366,7 +1452,12 @@ struct GuidedStudyScreen: View {
                     .foregroundColor(SeekTheme.textSecondary)
 
                     Button {
-                        appState.presentPaywall(.guidedStudyLimit)
+                        #if DEBUG
+                        print("[Paywall] GuidedStudy unlock tapped")
+                        #endif
+                        Task { @MainActor in
+                            appState.presentPaywall(.guidedStudyLimit)
+                        }
                     } label: {
                         Text("Unlock Unlimited Guided Study")
                             .font(.system(size: 15, weight: .semibold))
