@@ -118,7 +118,7 @@ struct RouteLoadFailureView: View {
                 dismiss()
             }
             .font(.system(size: 15, weight: .semibold))
-            .foregroundColor(.white)
+            .foregroundColor(SeekTheme.onAccentText)
             .padding(.horizontal, 20)
             .padding(.vertical, 10)
             .background(SeekTheme.maroonAccent)

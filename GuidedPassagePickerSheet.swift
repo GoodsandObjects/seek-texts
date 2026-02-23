@@ -325,7 +325,7 @@ struct GuidedPassagePickerSheet: View {
             } label: {
                 Text("Begin Guided Study")
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.white)
+                    .foregroundColor(SeekTheme.onAccentText)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 13)
                     .background(canApply ? SeekTheme.maroonAccent : SeekTheme.textSecondary.opacity(0.35))
@@ -456,7 +456,7 @@ struct GuidedPassagePickerSheet: View {
         Button(action: action) {
             Text(title)
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(selected ? .white : SeekTheme.maroonAccent)
+                .foregroundColor(selected ? SeekTheme.onAccentText : SeekTheme.maroonAccent)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
                 .background(selected ? SeekTheme.maroonAccent : SeekTheme.maroonAccent.opacity(0.08))

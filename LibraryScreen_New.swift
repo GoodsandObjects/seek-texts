@@ -135,7 +135,7 @@ struct LibraryScreenNew: View {
                     Text("Retry")
                 }
                 .font(.system(size: 15, weight: .medium))
-                .foregroundColor(.white)
+                .foregroundColor(SeekTheme.onAccentText)
                 .padding(.horizontal, 24)
                 .padding(.vertical, 12)
                 .background(SeekTheme.maroonAccent)
@@ -179,7 +179,7 @@ struct LibraryScreenNew: View {
                     Text("Retry")
                 }
                 .font(.system(size: 15, weight: .medium))
-                .foregroundColor(.white)
+                .foregroundColor(SeekTheme.onAccentText)
                 .padding(.horizontal, 24)
                 .padding(.vertical, 12)
                 .background(SeekTheme.maroonAccent)

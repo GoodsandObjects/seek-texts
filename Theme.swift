@@ -7,11 +7,17 @@ struct SeekTheme {
     // MARK: - Colors
 
     static let creamBackground = Color(red: 0.97, green: 0.95, blue: 0.92)
+    static let screenBackground = Color(.systemGroupedBackground)
     static let maroonAccent = Color(red: 0.75, green: 0.38, blue: 0.28)
     static let textPrimary = Color(red: 0.12, green: 0.10, blue: 0.08)
     static let textSecondary = Color(red: 0.55, green: 0.50, blue: 0.45)
-    static let cardBackground = Color.white
-    static let cardShadow = Color.black.opacity(0.03)
+    static let onAccentText = Color(red: 1.0, green: 1.0, blue: 1.0)
+    static let onAccentTextMuted = Color(red: 1.0, green: 1.0, blue: 1.0).opacity(0.8)
+    static let cardBackground = Color(.secondarySystemBackground)
+    static let cardShadow = Color.primary.opacity(0.08)
+    static let elevatedShadowWeak = Color.primary.opacity(0.03)
+    static let elevatedShadowSubtle = Color.primary.opacity(0.02)
+    static let overlayShadow = Color.primary.opacity(0.15)
 
     // MARK: - Dimensions
 
@@ -47,7 +53,7 @@ extension View {
 struct ThemedScreenBackground: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .background(SeekTheme.creamBackground.ignoresSafeArea())
+            .background(SeekTheme.screenBackground.ignoresSafeArea())
     }
 }
 

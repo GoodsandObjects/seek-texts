@@ -113,7 +113,7 @@ struct PaywallView: View {
                 } label: {
                     Text(viewModel.isLoading ? "Processing..." : "Unlock Premium")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(SeekTheme.onAccentText)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                         .background(SeekTheme.maroonAccent)
@@ -271,7 +271,7 @@ struct PaywallView: View {
 
     private var successOverlay: some View {
         ZStack {
-            Color.black.opacity(0.2)
+            Color.primary.opacity(0.2)
                 .ignoresSafeArea()
 
             VStack(spacing: 12) {

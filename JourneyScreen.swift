@@ -292,7 +292,7 @@ struct JourneyScreen: View {
         .padding(.vertical, 12)
         .background(SeekTheme.cardBackground)
         .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.02), radius: 3, x: 0, y: 1)
+        .shadow(color: SeekTheme.elevatedShadowSubtle, radius: 3, x: 0, y: 1)
     }
 
     // MARK: - Filters
@@ -612,15 +612,15 @@ private struct JourneyFilterChip: View {
                 if let count = count, count > 0 {
                     Text("\(count)")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(isSelected ? .white.opacity(0.8) : SeekTheme.textSecondary)
+                        .foregroundColor(isSelected ? SeekTheme.onAccentTextMuted : SeekTheme.textSecondary)
                 }
             }
-            .foregroundColor(isSelected ? .white : SeekTheme.textPrimary)
+            .foregroundColor(isSelected ? SeekTheme.onAccentText : SeekTheme.textPrimary)
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .background(isSelected ? SeekTheme.maroonAccent : SeekTheme.cardBackground)
             .cornerRadius(20)
-            .shadow(color: Color.black.opacity(isSelected ? 0 : 0.03), radius: 4, x: 0, y: 2)
+            .shadow(color: isSelected ? .clear : SeekTheme.elevatedShadowWeak, radius: 4, x: 0, y: 2)
         }
     }
 }
@@ -691,7 +691,7 @@ private struct GuidedSessionRow: View {
         .padding(15)
         .background(SeekTheme.cardBackground)
         .cornerRadius(14)
-        .shadow(color: Color.black.opacity(0.02), radius: 4, x: 0, y: 1)
+        .shadow(color: SeekTheme.elevatedShadowSubtle, radius: 4, x: 0, y: 1)
         .contentShape(Rectangle())
     }
 
@@ -715,7 +715,7 @@ private struct MissingSessionRow: View {
         .padding(16)
         .background(SeekTheme.cardBackground)
         .cornerRadius(14)
-        .shadow(color: Color.black.opacity(0.03), radius: 6, x: 0, y: 2)
+        .shadow(color: SeekTheme.elevatedShadowWeak, radius: 6, x: 0, y: 2)
     }
 }
 
@@ -752,7 +752,7 @@ private struct JourneyRecordRow: View {
         .padding(15)
         .background(record.type == .highlight ? highlightYellow : SeekTheme.cardBackground)
         .cornerRadius(14)
-        .shadow(color: Color.black.opacity(0.02), radius: 4, x: 0, y: 1)
+        .shadow(color: SeekTheme.elevatedShadowSubtle, radius: 4, x: 0, y: 1)
     }
 }
 
@@ -941,7 +941,7 @@ struct JourneyNoteDetailSheet: View {
                                 Text("Save")
                             }
                             .font(.system(size: 15, weight: .medium))
-                            .foregroundColor(.white)
+                            .foregroundColor(SeekTheme.onAccentText)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
                             .background(SeekTheme.maroonAccent)
@@ -1221,7 +1221,7 @@ struct GuidedSessionDetailScreen: View {
                                 Text("Resume Session")
                                     .font(.system(size: 15, weight: .semibold))
                             }
-                            .foregroundColor(.white)
+                            .foregroundColor(SeekTheme.onAccentText)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
                             .background(SeekTheme.maroonAccent)
@@ -1318,7 +1318,7 @@ private struct SessionMessageBubble: View {
 
                 Text(message.text)
                     .font(.system(size: 15))
-                    .foregroundColor(message.role == .user ? .white : SeekTheme.textPrimary)
+                    .foregroundColor(message.role == .user ? SeekTheme.onAccentText : SeekTheme.textPrimary)
                     .lineSpacing(4)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)

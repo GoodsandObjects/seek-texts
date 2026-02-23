@@ -206,7 +206,7 @@ struct ReaderScreen: View {
                     Text("Retry")
                 }
                 .font(.system(size: 15, weight: .medium))
-                .foregroundColor(.white)
+                .foregroundColor(SeekTheme.onAccentText)
                 .padding(.horizontal, 24)
                 .padding(.vertical, 12)
                 .background(SeekTheme.maroonAccent)
@@ -326,7 +326,7 @@ struct ReaderScreen: View {
                     Text("Retry")
                 }
                 .font(.system(size: 15, weight: .medium))
-                .foregroundColor(.white)
+                .foregroundColor(SeekTheme.onAccentText)
                 .padding(.horizontal, 24)
                 .padding(.vertical, 12)
                 .background(SeekTheme.maroonAccent)
@@ -1008,7 +1008,7 @@ struct NoteEditorSheet: View {
                             Text("Save Note")
                         }
                         .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(.white)
+                        .foregroundColor(SeekTheme.onAccentText)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                         .background(SeekTheme.maroonAccent)

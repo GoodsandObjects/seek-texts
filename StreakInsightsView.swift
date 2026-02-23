@@ -98,7 +98,7 @@ struct StreakInsightsView: View {
             Button(action: onUnlockTap) {
                 Text("Unlock Insights")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
+                    .foregroundColor(SeekTheme.onAccentText)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
                     .background(SeekTheme.maroonAccent)

@@ -1264,7 +1264,7 @@ struct GuidedStudyScreen: View {
                     } label: {
                         Text("Unlock Unlimited Guided Study")
                             .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(.white)
+                            .foregroundColor(SeekTheme.onAccentText)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
                             .background(SeekTheme.maroonAccent)
@@ -1360,7 +1360,7 @@ struct SaveInsightSheet: View {
                             Text("Save to Journey")
                         }
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(SeekTheme.onAccentText)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                         .background(SeekTheme.maroonAccent)
@@ -1382,16 +1382,16 @@ struct SaveInsightSheet: View {
                 if showSavedConfirmation {
                     HStack(spacing: 8) {
                         Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.white)
+                            .foregroundColor(SeekTheme.onAccentText)
                         Text("Insight saved")
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.white)
+                            .foregroundColor(SeekTheme.onAccentText)
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
                     .background(SeekTheme.maroonAccent)
                     .cornerRadius(20)
-                    .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
+                    .shadow(color: SeekTheme.overlayShadow, radius: 8, y: 4)
                     .padding(.top, 60)
                     .transition(.move(edge: .top).combined(with: .opacity))
                 }
@@ -1480,16 +1480,16 @@ private struct SaveConfirmationBanner: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "checkmark.circle.fill")
-                .foregroundColor(.white)
+                .foregroundColor(SeekTheme.onAccentText)
             Text("Session saved to My Journey")
                 .font(.system(size: 14, weight: .medium))
-                .foregroundColor(.white)
+                .foregroundColor(SeekTheme.onAccentText)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .background(SeekTheme.maroonAccent)
         .cornerRadius(20)
-        .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
+        .shadow(color: SeekTheme.overlayShadow, radius: 8, y: 4)
         .padding(.top, 60)
     }
 }
@@ -1506,7 +1506,7 @@ struct ChatBubble: View {
             VStack(alignment: message.isUser ? .trailing : .leading, spacing: 4) {
                 Text(message.content)
                     .font(.system(size: 15))
-                    .foregroundColor(message.isUser ? .white : SeekTheme.textPrimary)
+                    .foregroundColor(message.isUser ? SeekTheme.onAccentText : SeekTheme.textPrimary)
                     .lineSpacing(4)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)

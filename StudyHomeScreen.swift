@@ -48,12 +48,12 @@ struct StudyHomeScreen: View {
                         HStack(spacing: 10) {
                             if isPreparingLaunch {
                                 ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    .progressViewStyle(CircularProgressViewStyle(tint: SeekTheme.onAccentText))
                             }
                             Text("Start Guided Study")
                                 .font(.system(size: 16, weight: .semibold))
                         }
-                        .foregroundColor(.white)
+                        .foregroundColor(SeekTheme.onAccentText)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                         .background(SeekTheme.maroonAccent)
@@ -194,7 +194,7 @@ struct StudyHomeScreen: View {
 
                     Text("Resume")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(SeekTheme.onAccentText)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
                         .background(SeekTheme.maroonAccent)

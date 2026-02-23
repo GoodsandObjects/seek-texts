@@ -4,6 +4,7 @@ struct SettingsScreen: View {
     @EnvironmentObject var appState: AppState
     @StateObject private var libraryData = LibraryData.shared
     @StateObject private var studyStore = StudyStore.shared
+    @ObservedObject private var appSettings = AppSettings.shared
     @State private var showClearCacheConfirmation = false
     @State private var cacheSize: String = "Calculating..."
     #if DEBUG
@@ -22,6 +23,38 @@ struct SettingsScreen: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
+                // Appearance Section
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Appearance")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(SeekTheme.textSecondary)
+                        .textCase(.uppercase)
+                        .tracking(0.5)
+                        .padding(.horizontal, 4)
+
+                    VStack(spacing: 0) {
+                        HStack {
+                            Text("Mode")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(SeekTheme.textPrimary)
+
+                            Spacer(minLength: 16)
+
+                            Picker("Appearance Mode", selection: $appSettings.appearanceMode) {
+                                ForEach(AppearanceMode.allCases) { mode in
+                                    Text(mode.title).tag(mode)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .frame(maxWidth: 280)
+                        }
+                        .padding(16)
+                    }
+                    .background(SeekTheme.cardBackground)
+                    .cornerRadius(14)
+                    .shadow(color: SeekTheme.cardShadow, radius: 6, x: 0, y: 2)
+                }
+
                 // Account Section
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Account")
@@ -204,7 +237,7 @@ struct SettingsScreen: View {
                             } label: {
                                 Text("Refresh")
                                     .font(.system(size: 13, weight: .medium))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(SeekTheme.onAccentText)
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 8)
                                     .background(SeekTheme.maroonAccent)
@@ -249,7 +282,7 @@ struct SettingsScreen: View {
                                 } label: {
                                     Text("Reset Streak")
                                         .font(.system(size: 13, weight: .medium))
-                                        .foregroundColor(.white)
+                                        .foregroundColor(SeekTheme.onAccentText)
                                         .padding(.horizontal, 12)
                                         .padding(.vertical, 8)
                                         .background(SeekTheme.maroonAccent)
@@ -307,7 +340,7 @@ struct SettingsScreen: View {
                                 } label: {
                                     Text("Reset Usage")
                                         .font(.system(size: 13, weight: .medium))
-                                        .foregroundColor(.white)
+                                        .foregroundColor(SeekTheme.onAccentText)
                                         .padding(.horizontal, 12)
                                         .padding(.vertical, 8)
                                         .background(SeekTheme.maroonAccent)
@@ -407,7 +440,7 @@ struct SettingsScreen: View {
                                 } label: {
                                     Text(isProxyHealthCheckRunning ? "Testing /health..." : "Test /health")
                                         .font(.system(size: 13, weight: .medium))
-                                        .foregroundColor(.white)
+                                        .foregroundColor(SeekTheme.onAccentText)
                                         .padding(.horizontal, 12)
                                         .padding(.vertical, 8)
                                         .background(SeekTheme.maroonAccent)
@@ -519,7 +552,7 @@ struct SettingsScreen: View {
                                 } label: {
                                     Text("Refresh Data Status")
                                         .font(.system(size: 13, weight: .medium))
-                                        .foregroundColor(.white)
+                                        .foregroundColor(SeekTheme.onAccentText)
                                         .padding(.horizontal, 12)
                                         .padding(.vertical, 8)
                                         .background(SeekTheme.maroonAccent)
@@ -563,7 +596,7 @@ struct SettingsScreen: View {
         .themedScreenBackground()
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.large)
-        .toolbarBackground(SeekTheme.creamBackground, for: .navigationBar)
+        .toolbarBackground(SeekTheme.screenBackground, for: .navigationBar)
         .onAppear {
             updateCacheSize()
             #if DEBUG
