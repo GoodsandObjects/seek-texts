@@ -67,6 +67,18 @@ final class ShareImageGenerator {
             scriptureName: scriptureName
         )
     }
+
+    func shareVerseCard(
+        verseText: String,
+        referenceText: String,
+        sourceText: String? = nil
+    ) {
+        ShareManager.shared.shareVerseCard(
+            verseText: verseText,
+            referenceText: referenceText,
+            sourceText: sourceText
+        )
+    }
 }
 
 struct CopyUtility {

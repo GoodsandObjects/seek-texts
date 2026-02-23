@@ -121,11 +121,24 @@ struct ReaderScreen: View {
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
                 if !isMultiSelectMode {
-                    Button(action: { startGuidedStudy() }) {
-                        Image(systemName: "sparkles")
+                    Menu {
+                        Button {
+                            shareCurrentVerseRange()
+                        } label: {
+                            Label("Share Verse", systemImage: "square.and.arrow.up")
+                        }
+                        .disabled(loadState != .loaded || verses.isEmpty)
+
+                        Button {
+                            startGuidedStudy()
+                        } label: {
+                            Label("Guided Study", systemImage: "sparkles")
+                        }
+                        .disabled(loadState != .loaded || verses.isEmpty)
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
                     }
                     .foregroundColor(SeekTheme.maroonAccent)
-                    .disabled(loadState != .loaded || verses.isEmpty)
                 }
             }
         }
@@ -504,6 +517,28 @@ struct ReaderScreen: View {
         isMultiSelectMode = false
     }
 
+    private func shareCurrentVerseRange() {
+        if !selectedVerses.isEmpty {
+            shareSelectedVerses()
+            return
+        }
+
+        guard let verse = verses.first(where: { $0.number == lastVisibleVerseNumber }) ?? verses.first else {
+            return
+        }
+
+        let reference = "\(chapterRef.bookName) \(chapterRef.chapterNumber):\(verse.number)"
+        let source = sacredText?.name ?? tradition?.name
+
+        Task { @MainActor in
+            ShareImageGenerator.shared.shareVerseCard(
+                verseText: verse.text,
+                referenceText: reference,
+                sourceText: source
+            )
+        }
+    }
+
     private func highlightSelectedVerses() {
         for verseId in selectedVerses {
             if let verse = verses.first(where: { $0.id == verseId }) {
@@ -800,7 +835,7 @@ struct ContinuousVerseRow: View {
             showContextMenu = true
         }
         .confirmationDialog("\(ScriptureTerminology.verseLabel(for: chapterRef.scriptureId)) \(verse.number)", isPresented: $showContextMenu, titleVisibility: .visible) {
-            Button("Share verse") {
+            Button("Share Verse") {
                 onVerseIntent()
                 shareVerse()
             }
@@ -865,14 +900,11 @@ struct ContinuousVerseRow: View {
     }
 
     private func shareVerse() {
-        let noteForShare = appState.notes[verseId]
-
         Task { @MainActor in
-            ShareImageGenerator.shared.shareSingleVerse(
-                reference: reference,
+            ShareImageGenerator.shared.shareVerseCard(
                 verseText: verse.text,
-                scriptureName: textName,
-                noteText: noteForShare
+                referenceText: reference,
+                sourceText: textName.isEmpty ? traditionName : textName
             )
         }
     }

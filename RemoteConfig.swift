@@ -34,7 +34,7 @@ struct RemoteConfig {
 
     /// Default base URL for Guided Study proxy backend.
     /// Requests are sent to: https://yourdomain.com/api/guided-study
-    static let guidedStudyProxyBaseURLPlaceholder = "https://yourdomain.com/api"
+    static let guidedStudyProxyBaseURLPlaceholder = "https://seek-guided-study-proxy.goodsandobjects.workers.dev"
 
     /// Base URL for Guided Study proxy backend.
     static var guidedStudyProxyBaseURL: String {

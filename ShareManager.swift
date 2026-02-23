@@ -65,6 +65,22 @@ final class ShareManager {
         return renderer.uiImage
     }
 
+    func generateVerseCardImage(
+        verseText: String,
+        referenceText: String,
+        sourceText: String?
+    ) -> UIImage? {
+        let view = VerseShareCardView(
+            verseText: verseText,
+            referenceText: referenceText,
+            sourceText: sourceText
+        )
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = 3
+        renderer.proposedSize = ProposedViewSize(width: 1080, height: 1350)
+        return renderer.uiImage
+    }
+
     func shareSingleVerse(
         reference: String,
         verseText: String,
@@ -204,6 +220,42 @@ final class ShareManager {
         }
 
         presentGuidedStudyShareSheet(image: image, reference: cleanedReference)
+    }
+
+    func shareVerseCard(
+        verseText: String,
+        referenceText: String,
+        sourceText: String? = nil
+    ) {
+        guard canShareNow() else {
+            presentShareLimitPaywall()
+            return
+        }
+
+        let cleanedVerse = cleanedText(verseText)
+        let cleanedReference = cleanedText(referenceText)
+        let cleanedSource = cleanedText(sourceText)
+        guard !cleanedVerse.isEmpty, !cleanedReference.isEmpty else { return }
+
+        guard let image = generateVerseCardImage(
+            verseText: cleanedVerse,
+            referenceText: cleanedReference,
+            sourceText: cleanedSource.isEmpty ? nil : cleanedSource
+        ) else {
+            #if DEBUG
+            print("[ShareManager] Failed to render verse share card image")
+            #endif
+            return
+        }
+
+        #if DEBUG
+        let expectedSize = CGSize(width: 1080, height: 1350)
+        assert(image.size == expectedSize, "[ShareManager] Verse share image size mismatch: \(image.size)")
+        assert(image.pngData()?.isEmpty == false, "[ShareManager] Verse share image rendered blank data")
+        #endif
+
+        incrementShareUsageIfNeeded()
+        presentShareSheet(image: image, caption: nil)
     }
 
     private func sharePayload(_ payload: ShareCardPayload, prefilledCaption: String?) {
