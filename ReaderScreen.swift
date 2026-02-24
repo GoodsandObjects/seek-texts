@@ -57,11 +57,11 @@ struct ReaderScreen: View {
                         Text(chapterRef.bookName.uppercased())
                             .font(.subheadline)
                             .fontWeight(.medium)
-                            .foregroundStyle(.secondary)
+                            .foregroundColor(SeekTheme.textSecondary)
 
                         Text("\(chapterRef.chapterNumber)")
                             .font(.system(size: 34, weight: .semibold))
-                            .foregroundStyle(.primary)
+                            .foregroundColor(SeekTheme.textPrimary)
                             .multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -117,7 +117,7 @@ struct ReaderScreen: View {
         .animation(.easeInOut(duration: 0.2), value: isMultiSelectMode)
         .themedScreenBackground()
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(SeekTheme.creamBackground, for: .navigationBar)
+        .toolbarBackground(SeekTheme.screenBackground, for: .navigationBar)
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
                 if !isMultiSelectMode {
@@ -392,10 +392,6 @@ struct ReaderScreen: View {
     private func loadVerses() async {
         loadState = .loading
 
-        #if DEBUG
-        print("[ReaderScreen] Loading: \(chapterRef.scriptureId)/\(chapterRef.bookId)/\(chapterRef.chapterNumber)")
-        #endif
-
         do {
             let loadedVerses = try await RemoteDataService.shared.loadChapter(
                 scriptureId: chapterRef.scriptureId,
@@ -404,15 +400,7 @@ struct ReaderScreen: View {
             )
             verses = loadedVerses
             loadState = .loaded
-
-            #if DEBUG
-            print("[ReaderScreen] Loaded \(verses.count) verses")
-            #endif
         } catch {
-            #if DEBUG
-            print("[ReaderScreen] Failed to load: \(error.localizedDescription)")
-            #endif
-
             if shouldUseConnectivityFallback(error), let cached = RemoteDataService.shared.getCachedChapter(
                 scriptureId: chapterRef.scriptureId,
                 bookId: chapterRef.bookId,
@@ -530,8 +518,8 @@ struct ReaderScreen: View {
         let reference = "\(chapterRef.bookName) \(chapterRef.chapterNumber):\(verse.number)"
         let source = sacredText?.name ?? tradition?.name
 
-        Task { @MainActor in
-            ShareImageGenerator.shared.shareVerseCard(
+        DispatchQueue.main.async {
+            ShareManager.shared.shareVerseCard(
                 verseText: verse.text,
                 referenceText: reference,
                 sourceText: source
@@ -646,12 +634,6 @@ struct ReaderScreen: View {
     private func startGuidedStudy() {
         // Guard: Don't open Guided Study if verses haven't loaded yet
         guard !verses.isEmpty else {
-            #if DEBUG
-            print("[GuidedStudy] Cannot start: verses not loaded yet")
-            print("[GuidedStudy]   scriptureId: \(chapterRef.scriptureId)")
-            print("[GuidedStudy]   bookId: \(chapterRef.bookId)")
-            print("[GuidedStudy]   chapter: \(chapterRef.chapterNumber)")
-            #endif
             return
         }
 
@@ -674,18 +656,6 @@ struct ReaderScreen: View {
             traditionName: tradition?.name ?? ""
         )
 
-        #if DEBUG
-        let passage = context.buildPassage(scope: capturedSelectedVerses.isEmpty ? .chapter : .selected)
-        print("[GuidedStudy] Starting Guided Study:")
-        print("[GuidedStudy]   scriptureId: \(chapterRef.scriptureId)")
-        print("[GuidedStudy]   bookId: \(chapterRef.bookId)")
-        print("[GuidedStudy]   chapter: \(chapterRef.chapterNumber)")
-        print("[GuidedStudy]   verses loaded: \(verses.count)")
-        print("[GuidedStudy]   selected verse IDs: \(capturedSelectedVerses.count)")
-        print("[GuidedStudy]   passage reference: \(passage.reference)")
-        print("[GuidedStudy]   passage text length: \(passage.verseText.count) chars")
-        #endif
-
         guidedStudyContext = context
     }
 
@@ -699,14 +669,6 @@ struct ReaderScreen: View {
             traditionId: tradition?.id ?? "",
             traditionName: tradition?.name ?? ""
         )
-
-        #if DEBUG
-        let passage = context.buildPassage(scope: .selected)
-        print("[GuidedStudy] Starting for single verse:")
-        print("[GuidedStudy]   verse: \(verse.number)")
-        print("[GuidedStudy]   reference: \(passage.reference)")
-        print("[GuidedStudy]   text length: \(passage.verseText.count) chars")
-        #endif
 
         guidedStudyContext = context
     }
@@ -756,7 +718,7 @@ struct ContinuousVerseRow: View {
                 // Verse number (small, muted)
                 Text("\(verse.number)")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(SeekTheme.textSecondary)
                     .baselineOffset(2)
                     .frame(width: 26, alignment: .trailing)
                     .padding(.trailing, 4)
@@ -900,11 +862,15 @@ struct ContinuousVerseRow: View {
     }
 
     private func shareVerse() {
+        let text = verse.text
+        let ref = reference
+        let source = textName.isEmpty ? traditionName : textName
         Task { @MainActor in
-            ShareImageGenerator.shared.shareVerseCard(
-                verseText: verse.text,
-                referenceText: reference,
-                sourceText: textName.isEmpty ? traditionName : textName
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            ShareManager.shared.shareVerseCard(
+                verseText: text,
+                referenceText: ref,
+                sourceText: source
             )
         }
     }
@@ -978,7 +944,7 @@ struct NoteEditorSheet: View {
                             .font(.system(size: 15))
                             .scrollContentBackground(.hidden)
                             .padding(12)
-                            .background(Color(red: 1.0, green: 0.96, blue: 0.90))
+                            .background(Color(.secondarySystemBackground))
                             .cornerRadius(10)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)

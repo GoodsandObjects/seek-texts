@@ -110,21 +110,21 @@ struct LibraryScreenNew: View {
         VStack(spacing: 16) {
             ZStack {
                 Circle()
-                    .fill(Color.red.opacity(0.08))
+                    .fill(Brand.destructive.opacity(0.16))
                     .frame(width: 80, height: 80)
 
                 Image(systemName: "exclamationmark.triangle")
                     .font(.system(size: 32, weight: .medium))
-                    .foregroundColor(.red.opacity(0.8))
+                    .foregroundColor(Brand.destructive.opacity(0.82))
             }
 
             Text("Unable to load library")
                 .font(.system(size: 18, weight: .semibold))
-                .foregroundColor(SeekTheme.textPrimary)
+                .foregroundColor(Brand.textPrimary)
 
             Text("Please check your internet connection and try again.")
                 .font(.system(size: 14))
-                .foregroundColor(SeekTheme.textSecondary)
+                .foregroundColor(Brand.textSecondary)
                 .multilineTextAlignment(.center)
 
             Button {
@@ -135,10 +135,10 @@ struct LibraryScreenNew: View {
                     Text("Retry")
                 }
                 .font(.system(size: 15, weight: .medium))
-                .foregroundColor(SeekTheme.onAccentText)
+                .foregroundColor(Brand.onAccentText)
                 .padding(.horizontal, 24)
                 .padding(.vertical, 12)
-                .background(SeekTheme.maroonAccent)
+                .background(Brand.primaryAccent)
                 .cornerRadius(10)
             }
             .padding(.top, 8)
@@ -154,21 +154,21 @@ struct LibraryScreenNew: View {
         VStack(spacing: 16) {
             ZStack {
                 Circle()
-                    .fill(SeekTheme.maroonAccent.opacity(0.08))
+                    .fill(Brand.primaryAccent.opacity(0.08))
                     .frame(width: 80, height: 80)
 
                 Image(systemName: "wifi.slash")
                     .font(.system(size: 32, weight: .medium))
-                    .foregroundColor(SeekTheme.maroonAccent)
+                    .foregroundColor(Brand.primaryAccent)
             }
 
             Text("You're offline")
                 .font(.system(size: 18, weight: .semibold))
-                .foregroundColor(SeekTheme.textPrimary)
+                .foregroundColor(Brand.textPrimary)
 
             Text("Connect to the internet to load texts.")
                 .font(.system(size: 14))
-                .foregroundColor(SeekTheme.textSecondary)
+                .foregroundColor(Brand.textSecondary)
                 .multilineTextAlignment(.center)
 
             Button {
@@ -179,10 +179,10 @@ struct LibraryScreenNew: View {
                     Text("Retry")
                 }
                 .font(.system(size: 15, weight: .medium))
-                .foregroundColor(SeekTheme.onAccentText)
+                .foregroundColor(Brand.onAccentText)
                 .padding(.horizontal, 24)
                 .padding(.vertical, 12)
-                .background(SeekTheme.maroonAccent)
+                .background(Brand.primaryAccent)
                 .cornerRadius(10)
             }
             .padding(.top, 8)
@@ -199,11 +199,16 @@ struct LibraryScreenNew: View {
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(SeekTheme.textSecondary)
+                    .foregroundColor(Brand.textSecondary)
 
-                TextField("Search books... (e.g., Genesis 4)", text: $searchText)
+                TextField(
+                    "",
+                    text: $searchText,
+                    prompt: Text("Search books... (e.g., Genesis 4)")
+                        .foregroundColor(Brand.textSecondary.opacity(0.72))
+                )
                     .font(.system(size: 16))
-                    .foregroundColor(SeekTheme.textPrimary)
+                    .foregroundColor(Brand.textPrimary)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
                     .onSubmit {
@@ -227,15 +232,15 @@ struct LibraryScreenNew: View {
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 16))
-                            .foregroundColor(SeekTheme.textSecondary)
+                            .foregroundColor(Brand.textSecondary)
                     }
                 }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
-            .background(SeekTheme.cardBackground)
-            .cornerRadius(14)
-            .shadow(color: SeekTheme.cardShadow, radius: 6, x: 0, y: 2)
+            .background(Brand.surfaceSecondary.opacity(0.85))
+            .cornerRadius(16)
+            .shadow(color: SeekTheme.cardShadow.opacity(0.6), radius: 4, x: 0, y: 1)
         }
     }
 
@@ -248,15 +253,15 @@ struct LibraryScreenNew: View {
                 VStack(spacing: 12) {
                     Image(systemName: "text.magnifyingglass")
                         .font(.system(size: 32, weight: .light))
-                        .foregroundColor(SeekTheme.textSecondary.opacity(0.5))
+                        .foregroundColor(Brand.textSecondary.opacity(0.5))
 
                     Text("No books found")
                         .font(.system(size: 15))
-                        .foregroundColor(SeekTheme.textSecondary)
+                        .foregroundColor(Brand.textSecondary)
 
                     Text("Try \"Genesis\", \"Al-Faatiha\", or \"Psalms 23\"")
                         .font(.system(size: 13))
-                        .foregroundColor(SeekTheme.textSecondary.opacity(0.7))
+                        .foregroundColor(Brand.textSecondary.opacity(0.7))
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 40)
@@ -269,7 +274,7 @@ struct LibraryScreenNew: View {
             }
         }
         .padding(.horizontal, SeekTheme.screenHorizontalPadding)
-        .padding(.bottom, 24)
+        .padding(.bottom, 18)
     }
 
     // MARK: - Traditions List View
@@ -284,7 +289,7 @@ struct LibraryScreenNew: View {
             }
         }
         .padding(.horizontal, SeekTheme.screenHorizontalPadding)
-        .padding(.bottom, 24)
+        .padding(.bottom, 18)
     }
 
     // MARK: - Actions
@@ -337,18 +342,18 @@ private struct SkeletonRowView: View {
         HStack(spacing: 16) {
             // Icon placeholder
             RoundedRectangle(cornerRadius: 12)
-                .fill(SeekTheme.textSecondary.opacity(0.1))
+                .fill(Brand.textSecondary.opacity(0.1))
                 .frame(width: 48, height: 48)
 
             VStack(alignment: .leading, spacing: 8) {
                 // Title placeholder
                 RoundedRectangle(cornerRadius: 4)
-                    .fill(SeekTheme.textSecondary.opacity(0.1))
+                    .fill(Brand.textSecondary.opacity(0.1))
                     .frame(width: 120, height: 16)
 
                 // Subtitle placeholder
                 RoundedRectangle(cornerRadius: 4)
-                    .fill(SeekTheme.textSecondary.opacity(0.1))
+                    .fill(Brand.textSecondary.opacity(0.1))
                     .frame(width: 80, height: 12)
             }
 
@@ -379,12 +384,12 @@ private struct SearchResultRow: View {
                 // Icon
                 ZStack {
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(SeekTheme.maroonAccent.opacity(0.08))
+                        .fill(Brand.primaryAccent.opacity(0.08))
                         .frame(width: 48, height: 48)
 
                     Image(systemName: result.traditionIcon)
                         .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(SeekTheme.maroonAccent)
+                        .foregroundColor(Brand.primaryAccent)
                 }
 
                 // Info
@@ -392,22 +397,22 @@ private struct SearchResultRow: View {
                     HStack(spacing: 6) {
                         Text(result.bookName)
                             .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(SeekTheme.textPrimary)
+                            .foregroundColor(Brand.textPrimary)
 
                         if let chapter = result.matchedChapter {
                             Text(ScriptureTerminology.chapterBadge(for: result.scriptureId, chapterNumber: chapter))
                                 .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(SeekTheme.maroonAccent)
+                                .foregroundColor(Brand.primaryAccent)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 2)
-                                .background(SeekTheme.maroonAccent.opacity(0.1))
+                                .background(Brand.primaryAccent.opacity(0.1))
                                 .cornerRadius(6)
                         }
                     }
 
                     Text("\(result.scriptureName) • \(result.traditionName)")
                         .font(.system(size: 13))
-                        .foregroundColor(SeekTheme.textSecondary)
+                        .foregroundColor(Brand.textSecondary)
                         .lineLimit(1)
                 }
 

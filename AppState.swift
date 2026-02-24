@@ -199,9 +199,10 @@ struct GuidedStudyContext: Identifiable {
     }
 
     private var baseReference: String {
-        showUnitNumberInReference
-            ? "\(chapterRef.bookName) \(chapterRef.chapterNumber)"
-            : chapterRef.bookName
+        let displayBookName = formatDisplayBookName(chapterRef.bookName)
+        return showUnitNumberInReference
+            ? "\(displayBookName) \(chapterRef.chapterNumber)"
+            : displayBookName
     }
 
     /// Build passage for the given scope
@@ -256,6 +257,7 @@ class AppState: ObservableObject {
     @Published var selectedPassage: SelectedPassage?
     @Published var isPaywallPresented: Bool = false
     @Published var paywallContext: PaywallContext? = nil
+    @Published var paywallReason: PaywallReason? = nil
 
     private var paywallUnlockAction: (() -> Void)?
 
@@ -486,12 +488,17 @@ class AppState: ObservableObject {
         return formatter.string(from: Date())
     }
 
-    func presentPaywall(_ context: PaywallContext, onUnlock: (() -> Void)? = nil) {
+    func presentPaywall(
+        _ context: PaywallContext,
+        reason: PaywallReason? = nil,
+        onUnlock: (() -> Void)? = nil
+    ) {
         guard !EntitlementManager.shared.isPremium else {
             onUnlock?()
             return
         }
         paywallContext = context
+        paywallReason = reason ?? Self.defaultPaywallReason(for: context)
         paywallUnlockAction = onUnlock
         isPaywallPresented = true
     }
@@ -500,10 +507,25 @@ class AppState: ObservableObject {
         paywallUnlockAction?()
         paywallUnlockAction = nil
         isPaywallPresented = false
+        paywallReason = nil
     }
 
     func dismissPaywall() {
         paywallUnlockAction = nil
         isPaywallPresented = false
+        paywallReason = nil
+    }
+
+    private static func defaultPaywallReason(for context: PaywallContext) -> PaywallReason? {
+        switch context {
+        case .noteLimit:
+            return .notesLimitReached
+        case .highlightLimit:
+            return .highlightsLimitReached
+        case .guidedStudyLimit:
+            return .guidedStudyLimitReached
+        case .shareLimit:
+            return nil
+        }
     }
 }

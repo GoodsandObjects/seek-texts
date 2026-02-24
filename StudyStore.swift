@@ -235,6 +235,30 @@ final class StudyStore: ObservableObject {
         return conversation
     }
 
+    func startNewGuidedStudyConversation(initialMessage: String) -> StudyConversation {
+        let conversation = createGeneralConversation()
+        let trimmedMessage = initialMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !trimmedMessage.isEmpty else {
+            return conversation
+        }
+
+        appendMessage(
+            conversationId: conversation.id,
+            message: StudyMessage(
+                conversationId: conversation.id,
+                role: "user",
+                content: trimmedMessage
+            )
+        )
+        updateConversationTitle(
+            conversationId: conversation.id,
+            firstUserMessage: trimmedMessage,
+            fallbackTitle: "General Conversation"
+        )
+        return conversation
+    }
+
     func fetchConversationForPassage(_ passage: StudyPassageRef) -> StudyConversation? {
         conversations.first { convo in
             guard case .passage(let ref) = convo.context else { return false }

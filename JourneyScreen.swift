@@ -536,14 +536,14 @@ struct JourneyScreen: View {
             .joined(separator: " ")
 
         guard let scripture = LibraryData.shared.getScripture(by: session.scriptureId) else {
-            return fallback
+            return formatDisplayBookName(fallback)
         }
 
         if let matched = scripture.books.first(where: { normalizeBookId($0.id) == normalizeBookId(session.bookId) }) {
-            return matched.name
+            return formatDisplayBookName(matched.name)
         }
 
-        return fallback
+        return formatDisplayBookName(fallback)
     }
 
     private func sessionRoute(_ session: StudyConversation) -> AppRoute {
@@ -1190,10 +1190,14 @@ struct GuidedSessionDetailScreen: View {
 
                             Text(scopeLabel)
                                 .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(SeekTheme.maroonAccent.opacity(0.8))
+                                .foregroundStyle(.primary)
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 4)
-                                .background(SeekTheme.maroonAccent.opacity(0.1))
+                                .background(Color(.secondarySystemBackground))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color(.separator), lineWidth: 1)
+                                )
                                 .cornerRadius(8)
                         }
 

@@ -1,19 +1,38 @@
 import SwiftUI
 
+// SEEK BRAND SYSTEM
+// All UI colors must route through Brand tokens.
+// No hardcoded colors in views.
+
+enum Brand {
+    // Temporary placeholder accent until final brand palette is locked.
+    static let primaryAccent = Color(red: 0.75, green: 0.38, blue: 0.28)
+    static let primaryAccentMuted = primaryAccent.opacity(0.12)
+    static let onAccentText = Color(uiColor: .white)
+    static let backgroundPrimary = Color(.systemBackground)
+    static let backgroundGrouped = Color(.systemGroupedBackground)
+    static let surfacePrimary = Color(.secondarySystemBackground)
+    static let surfaceSecondary = Color(.tertiarySystemBackground)
+    static let borderSubtle = Color(.separator)
+    static let destructive = Color(uiColor: .systemRed)
+    static let textPrimary = Color.primary
+    static let textSecondary = Color.secondary
+}
+
 // MARK: - Seek App Theme
 
 struct SeekTheme {
 
     // MARK: - Colors
 
-    static let creamBackground = Color(red: 0.97, green: 0.95, blue: 0.92)
-    static let screenBackground = Color(.systemGroupedBackground)
-    static let maroonAccent = Color(red: 0.75, green: 0.38, blue: 0.28)
-    static let textPrimary = Color(red: 0.12, green: 0.10, blue: 0.08)
-    static let textSecondary = Color(red: 0.55, green: 0.50, blue: 0.45)
-    static let onAccentText = Color(red: 1.0, green: 1.0, blue: 1.0)
-    static let onAccentTextMuted = Color(red: 1.0, green: 1.0, blue: 1.0).opacity(0.8)
-    static let cardBackground = Color(.secondarySystemBackground)
+    static let creamBackground = Brand.backgroundPrimary
+    static let screenBackground = Brand.backgroundGrouped
+    static let maroonAccent = Brand.primaryAccent
+    static let textPrimary = Brand.textPrimary
+    static let textSecondary = Brand.textSecondary
+    static let onAccentText = Brand.onAccentText
+    static let onAccentTextMuted = Brand.onAccentText.opacity(0.8)
+    static let cardBackground = Brand.surfacePrimary
     static let cardShadow = Color.primary.opacity(0.08)
     static let elevatedShadowWeak = Color.primary.opacity(0.03)
     static let elevatedShadowSubtle = Color.primary.opacity(0.02)
@@ -73,12 +92,12 @@ struct ThemedIconView: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: SeekTheme.iconBackgroundCornerRadius)
-                .fill(SeekTheme.maroonAccent.opacity(0.08))
+                .fill(Brand.primaryAccentMuted)
                 .frame(width: size, height: size)
 
             Image(systemName: systemName)
                 .font(.system(size: iconFontSize, weight: .medium))
-                .foregroundColor(SeekTheme.maroonAccent)
+                .foregroundColor(Brand.primaryAccent.opacity(0.85))
         }
     }
 }
@@ -89,7 +108,7 @@ struct ThemedChevron: View {
     var body: some View {
         Image(systemName: "chevron.right")
             .font(.system(size: 13, weight: .medium))
-            .foregroundColor(SeekTheme.maroonAccent.opacity(0.4))
+            .foregroundColor(Brand.textSecondary.opacity(0.6))
     }
 }
 
@@ -107,11 +126,11 @@ struct SimpleThemedRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.system(size: 17, weight: .medium))
-                    .foregroundColor(SeekTheme.textPrimary)
+                    .foregroundColor(Brand.textPrimary)
 
                 Text(subtitle)
                     .font(.system(size: 13))
-                    .foregroundColor(SeekTheme.textSecondary)
+                    .foregroundColor(Brand.textSecondary)
                     .lineLimit(1)
             }
 

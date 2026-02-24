@@ -199,3 +199,25 @@ func normalizeBookId(_ bookId: String) -> String {
 
     return result
 }
+
+/// Ensures leading numeric book prefixes remain readable in UI labels.
+/// Example: "1john" -> "1 john"
+func formatDisplayBookName(_ value: String) -> String {
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return value }
+
+    let characters = Array(trimmed)
+    var splitIndex = 0
+
+    while splitIndex < characters.count, characters[splitIndex].isNumber {
+        splitIndex += 1
+    }
+
+    guard splitIndex > 0, splitIndex < characters.count, characters[splitIndex].isLetter else {
+        return trimmed
+    }
+
+    let numberPrefix = String(characters[..<splitIndex])
+    let nameSuffix = String(characters[splitIndex...])
+    return "\(numberPrefix) \(nameSuffix)"
+}

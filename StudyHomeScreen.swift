@@ -7,6 +7,8 @@ struct StudyHomeScreen: View {
 
     @State private var activeLaunch: GuidedStudyLaunch?
     @State private var isPreparingLaunch = false
+    @State private var isOpeningConversation = false
+    @State private var activeConversationId: UUID?
     @State private var lastReadingState: LastReadingState?
     @State private var inlineChatText = ""
     @State private var recentConversationLastUserPreview = ""
@@ -162,7 +164,7 @@ struct StudyHomeScreen: View {
         }
         .background(Brand.backgroundPrimary.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
-        .fullScreenCover(item: $activeLaunch) { launch in
+        .sheet(item: $activeLaunch) { launch in
             GuidedStudyScreen(
                 context: launch.context,
                 appState: appState,
@@ -187,6 +189,7 @@ struct StudyHomeScreen: View {
             refreshLastUserMessagePreview()
         }
         .onChange(of: recentConversation?.id) { _, _ in
+            guard !isOpeningConversation, !isPreparingLaunch else { return }
             refreshLastUserMessagePreview()
         }
     }
@@ -335,13 +338,13 @@ struct StudyHomeScreen: View {
     }
 
     private func sendInlineChatEntry(prefilledText: String? = nil) {
+        guard !isOpeningConversation else { return }
         let sourceText = prefilledText ?? inlineChatText
         let trimmed = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        guard guardGuidedStudyEntryOrPresentPaywall() else { return }
         let targetConversation = createNewInlineConversation()
-        #if DEBUG
-        print("[StudyHome] New chat created: \(targetConversation.id.uuidString)")
-        #endif
+        activeConversationId = targetConversation.id
 
         Task {
             await prepareLaunch(
@@ -359,6 +362,7 @@ struct StudyHomeScreen: View {
     }
 
     private func choosePassage() {
+        guard guardGuidedStudyEntryOrPresentPaywall() else { return }
         Task {
             await prepareLaunch(
                 existingConversation: nil,
@@ -372,6 +376,9 @@ struct StudyHomeScreen: View {
     }
 
     private func continueConversation(_ conversation: StudyConversation) {
+        guard !isOpeningConversation else { return }
+        guard guardGuidedStudyEntryOrPresentPaywall() else { return }
+        activeConversationId = conversation.id
         Task {
             await prepareLaunch(
                 existingConversation: conversation,
@@ -385,11 +392,14 @@ struct StudyHomeScreen: View {
     }
 
     private func continueConversation(_ conversation: StudyConversation, with prompt: String) {
+        guard !isOpeningConversation else { return }
+        guard guardGuidedStudyEntryOrPresentPaywall() else { return }
         let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedPrompt.isEmpty else {
             continueConversation(conversation)
             return
         }
+        activeConversationId = conversation.id
 
         Task {
             await prepareLaunch(
@@ -461,7 +471,7 @@ struct StudyHomeScreen: View {
         if case .passage(let scriptureRef) = conversation.context {
             let display = scriptureRef.display.trimmingCharacters(in: .whitespacesAndNewlines)
             if !display.isEmpty {
-                return display
+                return formatDisplayBookName(display)
             }
         }
 
@@ -480,7 +490,7 @@ struct StudyHomeScreen: View {
                 .joined(separator: " ")
         }
 
-        return "\(bookName) \(conversation.chapter)"
+        return "\(formatDisplayBookName(bookName)) \(conversation.chapter)"
     }
 
     private func continueCardLastPromptPreview(for conversation: StudyConversation) -> String {
@@ -533,10 +543,18 @@ struct StudyHomeScreen: View {
         autoFocusInputOnAppear: Bool,
         avoidScriptureFallback: Bool
     ) async {
-        guard !isPreparingLaunch else { return }
+        guard !isPreparingLaunch, !isOpeningConversation else { return }
+        guard guardGuidedStudyEntryOrPresentPaywall() else { return }
 
         isPreparingLaunch = true
-        defer { isPreparingLaunch = false }
+        isOpeningConversation = true
+        defer {
+            isPreparingLaunch = false
+            isOpeningConversation = false
+        }
+        if let existingConversation {
+            activeConversationId = existingConversation.id
+        }
 
         let context = await resolveContext(
             preferredSession: existingConversation,
@@ -550,6 +568,14 @@ struct StudyHomeScreen: View {
             showPassagePickerOnAppear: showPassagePickerOnAppear,
             autoFocusInputOnAppear: autoFocusInputOnAppear
         )
+    }
+
+    private func guardGuidedStudyEntryOrPresentPaywall() -> Bool {
+        guard appState.canUseGuidedStudy() else {
+            appState.presentPaywall(.guidedStudyLimit)
+            return false
+        }
+        return true
     }
 
     private func resolveContext(
@@ -568,35 +594,24 @@ struct StudyHomeScreen: View {
                         traditionName: ""
                     )
                 }
-                do {
-                    let verses = try await RemoteDataService.shared.loadChapter(
+                let cachedVerses = RemoteDataService.shared.getCachedChapter(
+                    scriptureId: session.scriptureId,
+                    bookId: session.bookId,
+                    chapter: session.chapter
+                ) ?? []
+                return GuidedStudyContext(
+                    chapterRef: ChapterRef(
                         scriptureId: session.scriptureId,
                         bookId: session.bookId,
-                        chapter: session.chapter
-                    )
-                    return GuidedStudyContext(
-                        chapterRef: ChapterRef(
-                            scriptureId: session.scriptureId,
-                            bookId: session.bookId,
-                            chapterNumber: session.chapter,
-                            bookName: session.bookId
-                        ),
-                        verses: verses,
-                        selectedVerseIds: [],
-                        textName: "",
-                        traditionId: "",
-                        traditionName: ""
-                    )
-                } catch {
-                    return GuidedStudyContext(
-                        chapterRef: StartCandidate.placeholder.chapterRef,
-                        verses: [],
-                        selectedVerseIds: [],
-                        textName: "",
-                        traditionId: "",
-                        traditionName: ""
-                    )
-                }
+                        chapterNumber: session.chapter,
+                        bookName: session.bookId
+                    ),
+                    verses: cachedVerses,
+                    selectedVerseIds: [],
+                    textName: "",
+                    traditionId: "",
+                    traditionName: ""
+                )
             }
 
             return GuidedStudyContext(

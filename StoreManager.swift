@@ -41,19 +41,25 @@ final class StoreManager: ObservableObject {
     }
 
     func fetchProducts() async {
+        var fetchedProducts: [Product] = []
+        var fetchError: Error?
+
         do {
-            let fetched = try await Product.products(for: Self.productIDs)
-            products = fetched.sorted { $0.price < $1.price }
-            #if DEBUG
-            let ids = products.map(\.id).joined(separator: ", ")
-            print("[StoreManager] Product fetch success: \(products.count) product(s): \(ids)")
-            #endif
+            fetchedProducts = try await Product.products(for: Self.productIDs)
         } catch {
-            products = []
-            #if DEBUG
-            print("[StoreManager] Product fetch failed: \(error.localizedDescription)")
-            #endif
+            fetchError = error
         }
+
+        products = fetchedProducts.sorted { $0.price < $1.price }
+
+        #if DEBUG
+        let returnedIDs = products.map(\.id).sorted()
+        let requestedIDs = Self.productIDs.sorted().joined(separator: ", ")
+        let returnedDescription = returnedIDs.isEmpty ? "none" : returnedIDs.joined(separator: ", ")
+        let errorDescription = fetchError.map { " error=\($0.localizedDescription)" } ?? ""
+        let requestedSuffix = returnedIDs.isEmpty ? " requested=[\(requestedIDs)]" : ""
+        print("[StoreManager] Product fetch result: count=\(returnedIDs.count) returned=[\(returnedDescription)]\(requestedSuffix)\(errorDescription)")
+        #endif
     }
 
     func purchase(plan: SubscriptionPlan) async throws {

@@ -9,17 +9,20 @@ struct PaywallView: View {
     @State private var successPulse = false
 
     let context: PaywallContext?
+    let reason: PaywallReason?
     let streakDays: Int
     let customSubtitle: String?
     let onUnlock: () -> Void
 
     init(
         context: PaywallContext? = nil,
+        reason: PaywallReason? = nil,
         streakDays: Int = 0,
         customSubtitle: String? = nil,
         onUnlock: @escaping () -> Void
     ) {
         self.context = context
+        self.reason = reason
         self.streakDays = streakDays
         self.customSubtitle = customSubtitle
         self.onUnlock = onUnlock
@@ -39,9 +42,9 @@ struct PaywallView: View {
         case .noteLimit:
             return "You've reached your note limit."
         case .highlightLimit:
-            return "Unlock unlimited highlights."
+            return "You've reached your highlight limit."
         case .shareLimit:
-            return "Share without limits."
+            return "Unlimited Guided Study and richer reflections."
         case .none:
             return "Unlimited Guided Study and richer reflections."
         }
@@ -51,7 +54,7 @@ struct PaywallView: View {
         [
             "Unlimited notes and highlights",
             "Unlimited Guided Study",
-            "Unlimited share cards"
+            "Study sessions that build on your past reflections"
         ]
     }
 
@@ -70,6 +73,13 @@ struct PaywallView: View {
                             .foregroundColor(SeekTheme.textSecondary)
                             .multilineTextAlignment(.center)
                             .lineLimit(2)
+
+                        if let reason {
+                            Text(reason.message)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(SeekTheme.textPrimary)
+                                .multilineTextAlignment(.center)
+                        }
 
                         Text("Join thousands building a daily reading habit.")
                             .font(.system(size: 13, weight: .medium))

@@ -99,6 +99,7 @@ class GuidedStudyViewModel: ObservableObject {
     @Published var currentReference: String
     @Published var currentVerseText: String
     @Published var isSwitchingPassage = false
+    @Published var isHydratingResume = false
     @Published var studyContext: StudyContext
 
     private var context: GuidedStudyContext
@@ -108,9 +109,9 @@ class GuidedStudyViewModel: ObservableObject {
     private var lastFailedMessageText: String?
     private var lastFailedConversationID: UUID?
     private let welcomeMessageText = """
-    Welcome to Guided Study. I'm here to explore this passage with you in a spirit of curiosity and reflection.
+    Welcome to Guided Study. This is a space to explore the passage with curiosity and reflection.
 
-    Take a moment to read through the text. When you're ready, choose a prompt below or share what's on your mind.
+    Take a moment to read through the text. When you're ready, choose a prompt below or add your own question.
     """
     private var trimmedWelcomeMessageText: String {
         welcomeMessageText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -183,7 +184,11 @@ class GuidedStudyViewModel: ObservableObject {
 
         // Load existing session messages or create welcome
         if let conversation = existingConversation {
+            isHydratingResume = true
             loadConversation(conversation)
+            Task { [weak self] in
+                await self?.hydrateResumedConversationIfNeeded(conversation)
+            }
         } else {
             if isGeneralConversation {
                 currentConversation = studyStore.createGeneralConversation()
@@ -197,9 +202,8 @@ class GuidedStudyViewModel: ObservableObject {
                     addWelcomeMessage()
                 }
             }
+            maybeRespondToPendingUserMessage()
         }
-
-        maybeRespondToPendingUserMessage()
     }
 
     private func loadConversation(_ conversation: StudyConversation) {
@@ -398,14 +402,6 @@ class GuidedStudyViewModel: ObservableObject {
         currentConversation?.id
     }
 
-    func logSessionDebugState() {
-        #if DEBUG
-        let sessionContext = isGeneralMode ? "general" : "passage"
-        let scriptureRefState = studyContext.scriptureRef == nil ? "nil" : "present"
-        print("[GuidedStudy] Open sessionContext=\(sessionContext) scriptureRef=\(scriptureRefState)")
-        #endif
-    }
-
     private var latestUserMessageForPromptChips: String? {
         messages
             .reversed()
@@ -490,9 +486,16 @@ class GuidedStudyViewModel: ObservableObject {
         verseRange: ClosedRange<Int>?
     ) async {
         guard !isSwitchingPassage else { return }
+        guard appState?.canUseGuidedStudy() ?? UsageLimitManager.shared.canPerform(.guidedStudyMessage) else {
+            hasUsedFreeResponse = true
+            appState?.presentPaywall(.guidedStudyLimit)
+            return
+        }
 
         isSwitchingPassage = true
-        defer { isSwitchingPassage = false }
+        defer {
+            isSwitchingPassage = false
+        }
 
         do {
             let loadedVerses = try await RemoteDataService.shared.loadChapter(
@@ -542,7 +545,8 @@ class GuidedStudyViewModel: ObservableObject {
             ))
 
             messages = []
-            currentConversation = studyStore.createConversation(makePassageRef())
+            let passageRef = makePassageRef()
+            currentConversation = studyStore.createConversation(passageRef)
             addWelcomeMessage()
             pendingMessageAfterUnlock = nil
             lastFailedMessageText = nil
@@ -559,18 +563,17 @@ class GuidedStudyViewModel: ObservableObject {
 
     func sendMessage(_ text: String) async {
         guard !isTyping else { return }
+        guard !isHydratingResume else { return }
+        guard !isSwitchingPassage else { return }
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedText.isEmpty else { return }
+        guard guardGuidedStudyAccessOrPresentPaywall(pendingMessage: trimmedText) else { return }
         guard trimmedText.count <= maxUserMessageCharacters else {
             showServiceUnavailableError = false
             messages.append(ChatMessage(
                 content: "Please keep messages under \(maxUserMessageCharacters) characters.",
                 isUser: false
             ))
-            return
-        }
-        if !UsageLimitManager.shared.canPerform(.guidedStudyMessage) {
-            handleGuidedStudyLimitReached(pendingMessage: trimmedText)
             return
         }
         showServiceUnavailableError = false
@@ -588,8 +591,10 @@ class GuidedStudyViewModel: ObservableObject {
 
     func retryLastRequest() async {
         guard !isTyping else { return }
+        guard !isHydratingResume else { return }
         guard let messageText = lastFailedMessageText,
               let conversationID = lastFailedConversationID else { return }
+        guard guardGuidedStudyAccessOrPresentPaywall(pendingMessage: messageText) else { return }
         showServiceUnavailableError = false
         isTyping = true
 
@@ -649,12 +654,10 @@ class GuidedStudyViewModel: ObservableObject {
 
     private func maybeRespondToPendingUserMessage() {
         guard !isTyping else { return }
+        guard !isHydratingResume else { return }
         guard let conversationID = currentConversation?.id else { return }
         guard let pendingText = latestPendingUserMessageText() else { return }
-        guard UsageLimitManager.shared.canPerform(.guidedStudyMessage) else {
-            handleGuidedStudyLimitReached(pendingMessage: pendingText)
-            return
-        }
+        guard guardGuidedStudyAccessOrPresentPaywall(pendingMessage: pendingText) else { return }
 
         isTyping = true
         Task {
@@ -663,6 +666,120 @@ class GuidedStudyViewModel: ObservableObject {
                 conversationID: conversationID
             )
         }
+    }
+
+    func sendMessageWhenReady(_ text: String) async {
+        while isHydratingResume {
+            if Task.isCancelled { return }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+        await sendMessage(text)
+    }
+
+    private func hydrateResumedConversationIfNeeded(_ conversation: StudyConversation) async {
+        defer {
+            isHydratingResume = false
+            maybeRespondToPendingUserMessage()
+        }
+
+        guard case .passage = conversation.context else {
+            return
+        }
+
+        let scriptureId = conversation.scriptureId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let bookId = conversation.bookId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let chapter = conversation.chapter
+
+        guard !scriptureId.isEmpty, !bookId.isEmpty, chapter > 0 else {
+            applyResumeHydrationFallback()
+            return
+        }
+
+        do {
+            let loadedVerses = try await RemoteDataService.shared.loadChapter(
+                scriptureId: scriptureId,
+                bookId: bookId,
+                chapter: chapter
+            )
+            guard !loadedVerses.isEmpty else {
+                applyResumeHydrationFallback()
+                return
+            }
+
+            let maxVerse = loadedVerses.map(\.number).max() ?? 1
+            var safeRange: ClosedRange<Int>?
+            if let start = conversation.verseStart, let end = conversation.verseEnd {
+                let lower = max(1, min(start, maxVerse))
+                let upper = max(lower, min(end, maxVerse))
+                safeRange = lower...upper
+            }
+
+            context = GuidedStudyContext(
+                chapterRef: ChapterRef(
+                    scriptureId: scriptureId,
+                    bookId: bookId,
+                    chapterNumber: chapter,
+                    bookName: context.chapterRef.bookName
+                ),
+                verses: loadedVerses,
+                selectedVerseIds: [],
+                textName: context.textName,
+                traditionId: context.traditionId,
+                traditionName: context.traditionName
+            )
+
+            let resolvedScope: GuidedSessionScope
+            if let safeRange {
+                resolvedScope = safeRange.lowerBound == safeRange.upperBound ? .selected : .range
+            } else {
+                resolvedScope = .chapter
+            }
+            currentScope = resolvedScope
+            currentVerseRange = safeRange
+
+            let passage = context.buildPassage(scope: resolvedScope, verseRange: safeRange)
+            currentReference = passage.reference
+            currentVerseText = passage.verseText
+            studyContext = .passage(scriptureRef: ScriptureRef(
+                scriptureId: scriptureId,
+                bookId: bookId,
+                chapter: chapter,
+                verseStart: safeRange?.lowerBound,
+                verseEnd: safeRange?.upperBound,
+                display: passage.reference
+            ))
+        } catch {
+            applyResumeHydrationFallback()
+        }
+    }
+
+    private func applyResumeHydrationFallback() {
+        context = GuidedStudyContext(
+            chapterRef: ChapterRef(
+                scriptureId: "guided-study",
+                bookId: "passage",
+                chapterNumber: 1,
+                bookName: "Passage"
+            ),
+            verses: [],
+            selectedVerseIds: [],
+            textName: "",
+            traditionId: "",
+            traditionName: ""
+        )
+        studyContext = .general
+        currentScope = .chapter
+        currentVerseRange = nil
+        currentReference = ""
+        currentVerseText = ""
+        currentConversation = studyStore.createGeneralConversation()
+        messages = []
+        addWelcomeMessage()
+        pendingMessageAfterUnlock = nil
+        lastFailedMessageText = nil
+        lastFailedConversationID = nil
+        showServiceUnavailableError = false
+        isTyping = false
     }
 
     private func latestPendingUserMessageText() -> String? {
@@ -678,12 +795,20 @@ class GuidedStudyViewModel: ObservableObject {
         return pending.isEmpty ? nil : pending
     }
 
+    private func guardGuidedStudyAccessOrPresentPaywall(pendingMessage: String) -> Bool {
+        let canUseGuidedStudy = appState?.canUseGuidedStudy() ?? UsageLimitManager.shared.canPerform(.guidedStudyMessage)
+        if canUseGuidedStudy {
+            hasUsedFreeResponse = false
+            return true
+        } else {
+            handleGuidedStudyLimitReached(pendingMessage: pendingMessage)
+            return false
+        }
+    }
+
     private func handleGuidedStudyLimitReached(pendingMessage: String) {
         hasUsedFreeResponse = true
         pendingMessageAfterUnlock = pendingMessage
-        #if DEBUG
-        print("[GuidedStudy][ErrorBucket] paywall (quota exceeded)")
-        #endif
         appState?.presentPaywall(.guidedStudyLimit, onUnlock: { [weak self] in
             self?.completePremiumUnlock()
         })
@@ -770,27 +895,22 @@ class GuidedStudyViewModel: ObservableObject {
                     ))
                 } else if statusCode == 400 {
                     messages.append(ChatMessage(
-                        content: "I couldn’t process that message. Please shorten or rephrase it and try again.",
+                        content: "Something went wrong. Please try again.",
                         isUser: false
                     ))
                 } else {
                     messages.append(ChatMessage(
-                        content: "I couldn’t complete that right now. Please try again.",
+                        content: "Something went wrong. Please try again.",
                         isUser: false
                     ))
                 }
             } else {
                 showServiceUnavailableError = false
                 messages.append(ChatMessage(
-                    content: "I couldn’t complete that right now. Please try again.",
+                    content: "Something went wrong. Please try again.",
                     isUser: false
                 ))
             }
-
-            #if DEBUG
-            print("[GuidedStudy][ErrorBucket] retry (service failure)")
-            print("[GuidedStudy] Provider error: \(error.localizedDescription)")
-            #endif
         }
     }
 
@@ -896,6 +1016,8 @@ struct GuidedStudyScreen: View {
     @State private var showReader = false
     @State private var didMarkStreakForAppearance = false
     @State private var showShareOptions = false
+    @State private var hasInitialized = false
+    @State private var isOpeningGuidedStudy = false
     @FocusState private var isInputFocused: Bool
 
     init(
@@ -1013,6 +1135,7 @@ struct GuidedStudyScreen: View {
                     initialScope: viewModel.currentScope,
                     initialRange: viewModel.currentVerseRange
                 ) { selection, scope, range in
+                    guard !isOpeningGuidedStudy else { return }
                     Task {
                         await viewModel.applyPassageSelection(selection, scope: scope, verseRange: range)
                     }
@@ -1025,7 +1148,7 @@ struct GuidedStudyScreen: View {
             .sheet(isPresented: $showAllPrompts) {
                 MorePromptsSheet(
                     prompts: viewModel.suggestedPrompts,
-                    isLocked: viewModel.hasUsedFreeResponse || viewModel.isTyping
+                    isLocked: viewModel.isTyping || viewModel.isSwitchingPassage || viewModel.isHydratingResume
                 ) { prompt in
                     Task { await viewModel.sendMessage(prompt) }
                 }
@@ -1073,6 +1196,7 @@ struct GuidedStudyScreen: View {
             .overlay(alignment: .top) {
                 if viewModel.showSaveConfirmation {
                     SaveConfirmationBanner()
+                        .allowsHitTesting(false)
                         .transition(.move(edge: .top).combined(with: .opacity))
                         .onAppear {
                             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
@@ -1085,31 +1209,35 @@ struct GuidedStudyScreen: View {
             }
             .animation(.easeInOut, value: viewModel.showSaveConfirmation)
             .onAppear {
+                guard !hasInitialized, !isOpeningGuidedStudy else { return }
+                isOpeningGuidedStudy = true
+                defer {
+                    hasInitialized = true
+                    isOpeningGuidedStudy = false
+                }
                 if !didMarkStreakForAppearance {
                     didMarkStreakForAppearance = true
                     StreakTracker.shared.markEngaged(source: .study)
                 }
-                viewModel.logSessionDebugState()
-            }
-            .onAppear {
-                guard !hasSentInitialPrompt else { return }
-                guard let prompt = initialPrompt?.trimmingCharacters(in: .whitespacesAndNewlines), !prompt.isEmpty else { return }
-                hasSentInitialPrompt = true
-                Task { await viewModel.sendMessage(prompt) }
-            }
-            .onAppear {
-                guard showPassagePickerOnAppear else { return }
-                guard !hasAutoPresentedPicker else { return }
-                hasAutoPresentedPicker = true
-                showPassagePicker = true
-            }
-            .onAppear {
-                guard autoFocusInputOnAppear else { return }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                    if !initialInputText.isEmpty {
-                        inputText = initialInputText
+                if !hasSentInitialPrompt,
+                   let prompt = initialPrompt?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !prompt.isEmpty {
+                    hasSentInitialPrompt = true
+                    Task { await viewModel.sendMessageWhenReady(prompt) }
+                }
+
+                if showPassagePickerOnAppear, !hasAutoPresentedPicker {
+                    hasAutoPresentedPicker = true
+                    showPassagePicker = true
+                }
+
+                if autoFocusInputOnAppear {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                        if !initialInputText.isEmpty {
+                            inputText = initialInputText
+                        }
+                        isInputFocused = true
                     }
-                    isInputFocused = true
                 }
             }
             .onDisappear {
@@ -1291,10 +1419,14 @@ struct GuidedStudyScreen: View {
             } label: {
                 Text("Choose a passage")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(SeekTheme.maroonAccent)
+                    .foregroundStyle(.primary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .background(SeekTheme.maroonAccent.opacity(0.08))
+                    .background(Color(.secondarySystemBackground))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color(.separator), lineWidth: 1)
+                    )
                     .cornerRadius(10)
             }
             .buttonStyle(.plain)
@@ -1328,42 +1460,59 @@ struct GuidedStudyScreen: View {
     // MARK: - Passage Header
 
     private var passageHeader: some View {
-        Button {
-            showReader = true
-        } label: {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(viewModel.currentReference)
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(SeekTheme.textPrimary)
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(viewModel.currentReference)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(SeekTheme.textPrimary)
 
-                    if !viewModel.currentVerseText.isEmpty {
-                        Text(viewModel.currentVerseText)
-                            .font(.custom("Georgia", size: 14))
-                            .foregroundColor(SeekTheme.textPrimary.opacity(0.85))
-                            .lineLimit(2)
-                            .lineSpacing(4)
-                            .padding(.top, 2)
-                    }
+                if !viewModel.currentVerseText.isEmpty {
+                    Text(viewModel.currentVerseText)
+                        .font(.custom("Georgia", size: 14))
+                        .foregroundColor(SeekTheme.textPrimary.opacity(0.85))
+                        .lineLimit(2)
+                        .lineSpacing(4)
+                        .padding(.top, 2)
                 }
-
-                Spacer(minLength: 8)
-
-                HStack(spacing: 4) {
-                    let chapterLabel = ScriptureTerminology.chapterLabel(for: viewModel.currentPassageSelection.scriptureId)
-                    Image(systemName: "book")
-                        .font(.system(size: 12, weight: .medium))
-                    Text(viewModel.currentScope == .chapter ? "Read Entire \(chapterLabel)" : "Read in Reader")
-                        .font(.system(size: 13, weight: .semibold))
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .semibold))
-                }
-                .foregroundColor(SeekTheme.maroonAccent)
-                .padding(.top, 2)
             }
             .contentShape(Rectangle())
+            .onTapGesture {
+                showReader = true
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Open passage in reader")
+            .accessibilityAddTraits(.isButton)
+
+            Spacer(minLength: 8)
+
+            VStack(alignment: .trailing, spacing: 6) {
+                Button {
+                    showReader = true
+                } label: {
+                    HStack(spacing: 4) {
+                        let chapterLabel = ScriptureTerminology.chapterLabel(for: viewModel.currentPassageSelection.scriptureId)
+                        Image(systemName: "book")
+                            .font(.system(size: 12, weight: .medium))
+                        Text(viewModel.currentScope == .chapter ? "Read Entire \(chapterLabel)" : "Read in Reader")
+                            .font(.system(size: 13, weight: .semibold))
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .foregroundColor(SeekTheme.maroonAccent)
+                    .padding(.top, 2)
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    showPassagePicker = true
+                } label: {
+                    Text("Change Passage")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(SeekTheme.maroonAccent)
+                }
+                .buttonStyle(.plain)
+            }
         }
-        .buttonStyle(.plain)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
@@ -1380,14 +1529,18 @@ struct GuidedStudyScreen: View {
                 } label: {
                     Text(prompt)
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(SeekTheme.maroonAccent)
+                        .foregroundStyle(.primary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
                         .padding(.horizontal, 16)
-                        .background(SeekTheme.maroonAccent.opacity(0.08))
+                        .background(Color(.secondarySystemBackground))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20)
+                                .stroke(Color(.separator), lineWidth: 1)
+                        )
                         .cornerRadius(20)
                 }
-                .disabled(viewModel.hasUsedFreeResponse || viewModel.isTyping)
+                .disabled(viewModel.isTyping || viewModel.isSwitchingPassage || viewModel.isHydratingResume)
             }
 
             if viewModel.suggestedPrompts.count > 3 {
@@ -1399,7 +1552,7 @@ struct GuidedStudyScreen: View {
                         .foregroundColor(SeekTheme.textSecondary)
                         .padding(.top, 2)
                 }
-                .disabled(viewModel.hasUsedFreeResponse || viewModel.isTyping)
+                .disabled(viewModel.isTyping || viewModel.isSwitchingPassage || viewModel.isHydratingResume)
             }
         }
         .padding(.top, 8)
@@ -1419,7 +1572,7 @@ struct GuidedStudyScreen: View {
                         .cornerRadius(24)
                         .focused($isInputFocused)
                         .lineLimit(1...4)
-                        .disabled(viewModel.isTyping)
+                        .disabled(viewModel.isTyping || viewModel.isSwitchingPassage || viewModel.isHydratingResume)
 
                     Button {
                         let outgoing = inputText
@@ -1437,7 +1590,12 @@ struct GuidedStudyScreen: View {
                             }
                         }
                     }
-                    .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isTyping)
+                    .disabled(
+                        inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                        viewModel.isTyping ||
+                        viewModel.isSwitchingPassage ||
+                        viewModel.isHydratingResume
+                    )
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
@@ -1452,12 +1610,9 @@ struct GuidedStudyScreen: View {
                     .foregroundColor(SeekTheme.textSecondary)
 
                     Button {
-                        #if DEBUG
-                        print("[Paywall] GuidedStudy unlock tapped")
-                        #endif
-                        Task { @MainActor in
-                            appState.presentPaywall(.guidedStudyLimit)
-                        }
+                        appState.presentPaywall(.guidedStudyLimit, onUnlock: { [viewModel] in
+                            viewModel.completePremiumUnlock()
+                        })
                     } label: {
                         Text("Unlock Unlimited Guided Study")
                             .font(.system(size: 15, weight: .semibold))
@@ -1804,10 +1959,14 @@ private struct GuidedStudyUnavailableInlineView: View {
                 } label: {
                     Text("Try Again")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(SeekTheme.maroonAccent)
+                        .foregroundStyle(.primary)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .background(SeekTheme.maroonAccent.opacity(0.1))
+                        .background(Color(.secondarySystemBackground))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color(.separator), lineWidth: 1)
+                        )
                         .cornerRadius(8)
                 }
                 .buttonStyle(.plain)

@@ -11,20 +11,6 @@ enum GuidedStudyShareOption {
 final class ShareManager {
     static let shared = ShareManager()
 
-    private let defaults: UserDefaults
-    private let calendar: Calendar
-    private let freeDailyLimit = 1
-
-    private let shareCountKey = "seek_share_count_day"
-    private let shareDateKey = "seek_share_count_date"
-    private let streakShareCountKey = "seek_streak_share_count_day"
-    private let streakShareDateKey = "seek_streak_share_count_date"
-
-    init(defaults: UserDefaults = .standard, calendar: Calendar = .autoupdatingCurrent) {
-        self.defaults = defaults
-        self.calendar = calendar
-    }
-
     func generateCardImage(payload: ShareCardPayload) -> UIImage? {
         let view = ShareCardView(payload: payload)
         let renderer = ImageRenderer(content: view)
@@ -70,15 +56,28 @@ final class ShareManager {
         referenceText: String,
         sourceText: String?
     ) -> UIImage? {
+        let cardSize = CGSize(width: 1080, height: 1350)
         let view = VerseShareCardView(
             verseText: verseText,
             referenceText: referenceText,
             sourceText: sourceText
         )
+        .environment(\.colorScheme, .light)
         let renderer = ImageRenderer(content: view)
-        renderer.scale = 3
-        renderer.proposedSize = ProposedViewSize(width: 1080, height: 1350)
-        return renderer.uiImage
+        renderer.scale = UIScreen.main.scale
+        renderer.proposedSize = ProposedViewSize(width: cardSize.width, height: cardSize.height)
+        guard let rawImage = renderer.uiImage else { return nil }
+
+        // Redraw into an opaque bitmap so the share sheet always sees a filled background.
+        let opaqueFormat = UIGraphicsImageRendererFormat()
+        opaqueFormat.scale = rawImage.scale
+        opaqueFormat.opaque = true
+        let opaqueRenderer = UIGraphicsImageRenderer(size: rawImage.size, format: opaqueFormat)
+        return opaqueRenderer.image { ctx in
+            UIColor(red: 0.97, green: 0.95, blue: 0.92, alpha: 1).setFill()
+            ctx.fill(CGRect(origin: .zero, size: rawImage.size))
+            rawImage.draw(at: .zero)
+        }
     }
 
     func shareSingleVerse(
@@ -151,23 +150,14 @@ final class ShareManager {
         isQualifiedToday: Bool,
         milestoneCopy: String?
     ) {
-        guard canShareStreakNow() else {
-            presentStreakShareLimitPaywall()
-            return
-        }
-
         guard let image = generateStreakCardImage(
             currentStreak: currentStreak,
             isQualifiedToday: isQualifiedToday,
             milestoneCopy: milestoneCopy
         ) else {
-            #if DEBUG
-            print("[ShareManager] Failed to render streak share card image")
-            #endif
             return
         }
 
-        incrementStreakShareUsageIfNeeded()
         presentShareSheet(image: image, caption: nil)
     }
 
@@ -213,9 +203,6 @@ final class ShareManager {
             excerpt: effectiveExcerpt,
             reflection: reflection
         ) else {
-            #if DEBUG
-            print("[ShareManager] Failed to render guided study share card image")
-            #endif
             return
         }
 
@@ -227,11 +214,6 @@ final class ShareManager {
         referenceText: String,
         sourceText: String? = nil
     ) {
-        guard canShareNow() else {
-            presentShareLimitPaywall()
-            return
-        }
-
         let cleanedVerse = cleanedText(verseText)
         let cleanedReference = cleanedText(referenceText)
         let cleanedSource = cleanedText(sourceText)
@@ -242,87 +224,18 @@ final class ShareManager {
             referenceText: cleanedReference,
             sourceText: cleanedSource.isEmpty ? nil : cleanedSource
         ) else {
-            #if DEBUG
-            print("[ShareManager] Failed to render verse share card image")
-            #endif
             return
         }
 
-        #if DEBUG
-        let expectedSize = CGSize(width: 1080, height: 1350)
-        assert(image.size == expectedSize, "[ShareManager] Verse share image size mismatch: \(image.size)")
-        assert(image.pngData()?.isEmpty == false, "[ShareManager] Verse share image rendered blank data")
-        #endif
-
-        incrementShareUsageIfNeeded()
-        presentShareSheet(image: image, caption: nil)
+        presentVerseCardShareSheet(image: image, referenceText: cleanedReference)
     }
 
     private func sharePayload(_ payload: ShareCardPayload, prefilledCaption: String?) {
-        guard canShareNow() else {
-            presentShareLimitPaywall()
-            return
-        }
-
         guard let image = generateCardImage(payload: payload) else {
-            #if DEBUG
-            print("[ShareManager] Failed to render share card image")
-            #endif
             return
         }
 
-        incrementShareUsageIfNeeded()
         presentShareSheet(image: image, caption: prefilledCaption)
-    }
-
-    private func canShareNow() -> Bool {
-        if EntitlementManager.shared.isPremium {
-            return true
-        }
-        let today = dayString(for: Date())
-        if defaults.string(forKey: shareDateKey) != today {
-            return true
-        }
-        let count = defaults.integer(forKey: shareCountKey)
-        return count < freeDailyLimit
-    }
-
-    private func incrementShareUsageIfNeeded() {
-        guard !EntitlementManager.shared.isPremium else { return }
-
-        let today = dayString(for: Date())
-        let savedDay = defaults.string(forKey: shareDateKey)
-        if savedDay == today {
-            defaults.set(defaults.integer(forKey: shareCountKey) + 1, forKey: shareCountKey)
-        } else {
-            defaults.set(today, forKey: shareDateKey)
-            defaults.set(1, forKey: shareCountKey)
-        }
-    }
-
-    private func canShareStreakNow() -> Bool {
-        if EntitlementManager.shared.isPremium {
-            return true
-        }
-        let today = dayString(for: Date())
-        if defaults.string(forKey: streakShareDateKey) != today {
-            return true
-        }
-        let count = defaults.integer(forKey: streakShareCountKey)
-        return count < freeDailyLimit
-    }
-
-    private func incrementStreakShareUsageIfNeeded() {
-        guard !EntitlementManager.shared.isPremium else { return }
-
-        let today = dayString(for: Date())
-        let savedDay = defaults.string(forKey: streakShareDateKey)
-        if savedDay == today {
-            defaults.set(defaults.integer(forKey: streakShareCountKey) + 1, forKey: streakShareCountKey)
-        } else {
-            defaults.set(today, forKey: streakShareDateKey)
-            defaults.set(1, forKey: streakShareCountKey)
-        }
     }
 
     private func presentShareSheet(image: UIImage, caption: String?) {
@@ -332,7 +245,29 @@ final class ShareManager {
         }
 
         let activityVC = UIActivityViewController(activityItems: items, applicationActivities: nil)
-        guard let presenter = Self.topViewController() else { return }
+        guard let presenter = Self.sharePresenter() else { return }
+
+        if let popover = activityVC.popoverPresentationController {
+            popover.sourceView = presenter.view
+            popover.sourceRect = CGRect(
+                x: presenter.view.bounds.midX,
+                y: presenter.view.bounds.midY,
+                width: 0,
+                height: 0
+            )
+        }
+
+        presenter.present(activityVC, animated: true)
+    }
+
+    private func presentVerseCardShareSheet(image: UIImage, referenceText: String) {
+        let metadata = verseShareMetadata(from: referenceText)
+        guard let fileURL = writeVerseCardJPEGToTemporaryFile(image: image, filename: metadata.filename) else { return }
+        let items: [Any] = [fileURL, metadata.previewText]
+
+        let activityVC = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        activityVC.setValue(metadata.subject, forKey: "subject")
+        guard let presenter = Self.sharePresenter() else { return }
 
         if let popover = activityVC.popoverPresentationController {
             popover.sourceView = presenter.view
@@ -355,29 +290,15 @@ final class ShareManager {
             do {
                 try pngData.write(to: fileURL, options: .atomic)
                 items = [fileURL]
-                #if DEBUG
-                assert(image.size.width > 0 && image.size.height > 0, "[ShareManager] Guided study share image has invalid size")
-                let exists = FileManager.default.fileExists(atPath: fileURL.path)
-                print("[ShareManager] Guided study image size: \(Int(image.size.width))x\(Int(image.size.height))")
-                print("[ShareManager] Guided study file exists at \(fileURL.path): \(exists)")
-                #endif
             } catch {
-                #if DEBUG
-                print("[ShareManager] Failed writing guided study share PNG to disk: \(error.localizedDescription)")
-                print("[ShareManager] Guided study image size: \(Int(image.size.width))x\(Int(image.size.height))")
-                #endif
                 items = [image]
             }
         } else {
-            #if DEBUG
-            print("[ShareManager] Failed to encode guided study image as PNG")
-            print("[ShareManager] Guided study image size: \(Int(image.size.width))x\(Int(image.size.height))")
-            #endif
             items = [image]
         }
 
         let activityVC = UIActivityViewController(activityItems: items, applicationActivities: nil)
-        guard let presenter = Self.topViewController() else { return }
+        guard let presenter = Self.sharePresenter() else { return }
 
         if let popover = activityVC.popoverPresentationController {
             popover.sourceView = presenter.view
@@ -402,6 +323,59 @@ final class ShareManager {
         return FileManager.default.temporaryDirectory.appendingPathComponent(filename)
     }
 
+    private func writeVerseCardJPEGToTemporaryFile(image: UIImage, filename: String) -> URL? {
+        let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+
+        guard let jpegData = image.jpegData(compressionQuality: 0.94) else {
+            return nil
+        }
+
+        do {
+            try jpegData.write(to: fileURL, options: .atomic)
+            return fileURL
+        } catch {
+            return nil
+        }
+    }
+
+    private func verseShareMetadata(from reference: String) -> (subject: String, filename: String, previewText: String) {
+        let cleanedReference = cleanedText(reference)
+        let pattern = "(\\d+):(\\d+)"
+        let nsRange = NSRange(cleanedReference.startIndex..<cleanedReference.endIndex, in: cleanedReference)
+
+        if let regex = try? NSRegularExpression(pattern: pattern),
+           let match = regex.firstMatch(in: cleanedReference, range: nsRange),
+           let chapterRange = Range(match.range(at: 1), in: cleanedReference),
+           let verseRange = Range(match.range(at: 2), in: cleanedReference),
+           let fullRange = Range(match.range(at: 0), in: cleanedReference) {
+            let chapter = String(cleanedReference[chapterRange])
+            let verse = String(cleanedReference[verseRange])
+            let rawBook = cleanedReference[..<fullRange.lowerBound]
+                .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+            let book = rawBook.isEmpty ? "Verse" : rawBook
+            let subject = "\(book) \(chapter):\(verse)"
+            let safeBook = sanitizeUnderscoreFilename(book)
+            let filename = "\(safeBook)_\(chapter)_\(verse).jpg"
+            return (subject: subject, filename: filename, previewText: "\(subject) — Seek")
+        }
+
+        let fallbackSubject = cleanedReference.isEmpty ? "Verse" : cleanedReference
+        let fallbackName = sanitizeUnderscoreFilename(fallbackSubject)
+        return (
+            subject: fallbackSubject,
+            filename: "\(fallbackName).jpg",
+            previewText: "\(fallbackSubject) — Seek"
+        )
+    }
+
+    private func sanitizeUnderscoreFilename(_ value: String) -> String {
+        let replaced = value
+            .replacingOccurrences(of: "[^A-Za-z0-9]+", with: "_", options: .regularExpression)
+            .replacingOccurrences(of: "_+", with: "_", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "_"))
+        return replaced.isEmpty ? "Verse" : replaced
+    }
+
     private func sanitizeFilenameReference(_ value: String) -> String? {
         let cleaned = cleanedText(value)
         guard !cleaned.isEmpty else { return nil }
@@ -419,31 +393,6 @@ final class ShareManager {
         }
         let index = titleCased.index(titleCased.startIndex, offsetBy: maxLength)
         return String(titleCased[..<index]).trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private func presentShareLimitPaywall() {
-        guard let presenter = Self.topViewController() else { return }
-        let paywall = PaywallView(context: .shareLimit, streakDays: StreakStore().load()?.currentStreak ?? 0) { }
-        let host = UIHostingController(rootView: paywall)
-        host.modalPresentationStyle = .fullScreen
-        presenter.present(host, animated: true)
-    }
-
-    private func presentStreakShareLimitPaywall() {
-        guard let presenter = Self.topViewController() else { return }
-        let paywall = PaywallView(
-            context: .shareLimit,
-            streakDays: StreakStore().load()?.currentStreak ?? 0,
-            customSubtitle: "Share without limits."
-        ) { }
-        let host = UIHostingController(rootView: paywall)
-        host.modalPresentationStyle = .fullScreen
-        presenter.present(host, animated: true)
-    }
-
-    private func dayString(for date: Date) -> String {
-        let components = calendar.dateComponents([.year, .month, .day], from: date)
-        return "\(components.year ?? 0)-\(components.month ?? 0)-\(components.day ?? 0)"
     }
 
     private func cleanedText(_ value: String?) -> String {
@@ -509,6 +458,14 @@ final class ShareManager {
         var topController = window.rootViewController
         while let presented = topController?.presentedViewController {
             topController = presented
+        }
+        return topController
+    }
+
+    private static func sharePresenter() -> UIViewController? {
+        guard var topController = topViewController() else { return nil }
+        while topController is UIAlertController, let presenting = topController.presentingViewController {
+            topController = presenting
         }
         return topController
     }

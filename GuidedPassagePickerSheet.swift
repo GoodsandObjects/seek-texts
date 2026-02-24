@@ -103,11 +103,34 @@ struct GuidedPassagePickerSheet: View {
         }
     }
 
+    private var scriptureBookOptions: [FlatBookOption] {
+        guard let scripture = selectedScripture else { return [] }
+        let traditionId = selectedTraditionId
+        let traditionName = selectedTradition?.name ?? ""
+        return scripture.books.map { book in
+            FlatBookOption(
+                traditionId: traditionId,
+                traditionName: traditionName,
+                scriptureId: scripture.id,
+                scriptureName: scripture.name,
+                book: book
+            )
+        }
+    }
+
     private var selectedBookOption: FlatBookOption? {
-        allBookOptions.first { option in
+        scriptureBookOptions.first { option in
             option.traditionId == selectedTraditionId &&
             option.scriptureId == selectedScriptureId &&
             option.book.id == selectedBookId
+        }
+    }
+
+    private var scopedSearchResults: [GuidedSearchResult] {
+        guard !selectedScriptureId.isEmpty else { return searchResults }
+        return searchResults.filter {
+            $0.selection.scriptureId == selectedScriptureId &&
+            $0.selection.traditionId == selectedTraditionId
         }
     }
 
@@ -238,27 +261,25 @@ struct GuidedPassagePickerSheet: View {
 
             sectionStepLabel("Step 2", title: "Book")
             Menu {
-                ForEach(allBookOptions) { option in
+                ForEach(scriptureBookOptions) { option in
                     Button {
-                        selectedTraditionId = option.traditionId
-                        selectedScriptureId = option.scriptureId
                         selectedBookId = option.book.id
                         selectedUnitNumber = 1
                         useRange = false
                         rangeStart = 1
                         rangeEnd = 8
                     } label: {
-                        Text("\(option.title) • \(option.subtitle)")
+                        Text(option.title)
                     }
                 }
             } label: {
                 selectionRow(
                     title: selectedBookOption?.title ?? "Select Book",
-                    subtitle: selectedBookOption?.subtitle ?? "Choose a passage source",
-                    isEnabled: !allBookOptions.isEmpty
+                    subtitle: "Choose a passage source",
+                    isEnabled: !scriptureBookOptions.isEmpty
                 )
             }
-            .disabled(allBookOptions.isEmpty)
+            .disabled(scriptureBookOptions.isEmpty)
 
             sectionStepLabel("Step 3", title: unitLabel)
             if maxUnitNumber > 1 {
@@ -411,8 +432,8 @@ struct GuidedPassagePickerSheet: View {
 
     private var searchResultsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if !searchResults.isEmpty {
-                ForEach(searchResults) { result in
+            if !scopedSearchResults.isEmpty {
+                ForEach(scopedSearchResults) { result in
                     Button {
                         applySearchResult(result)
                     } label: {

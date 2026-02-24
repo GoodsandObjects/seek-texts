@@ -72,6 +72,7 @@ final class OpenAIProxyClient: AIProvider, @unchecked Sendable {
     private let urlSession: URLSession
     private let maxRetries: Int
     private let maxPassageCharacters = 2_400
+    private let maxProxyMessageCount = 24
 
     init(
         baseURL: String,
@@ -89,10 +90,11 @@ final class OpenAIProxyClient: AIProvider, @unchecked Sendable {
     }
 
     func generateResponse(messages: [GuidedStudyChatMessage], context: GuidedStudyProviderContext) async throws -> String {
-        guard let endpoint = endpointURL() else {
+        let endpoints = endpointURLs()
+        guard !endpoints.isEmpty else {
             throw OpenAIProxyClientError.invalidBaseURL
         }
-        guard endpoint.scheme?.lowercased() == "https" else {
+        guard endpoints.allSatisfy({ $0.scheme?.lowercased() == "https" }) else {
             throw OpenAIProxyClientError.insecureBaseURL
         }
         let cleanedMessages = messages.filter {
@@ -102,36 +104,94 @@ final class OpenAIProxyClient: AIProvider, @unchecked Sendable {
             throw OpenAIProxyClientError.invalidResponse
         }
 
+        let normalizedScriptureRef: String = {
+            let trimmed = context.scriptureRef.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? "General Study" : trimmed
+        }()
+
+        let boundedMessages = Array(cleanedMessages.suffix(maxProxyMessageCount))
+
         let requestBody = GuidedStudyProxyRequest(
-            scriptureRef: context.scriptureRef,
+            scriptureRef: normalizedScriptureRef,
             passageText: String(context.passageText.prefix(maxPassageCharacters)),
-            messages: cleanedMessages,
+            messages: boundedMessages,
             locale: context.locale
         )
 
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(requestBody)
+        let encodedBody = try JSONEncoder().encode(requestBody)
+        var lastError: Error?
 
-        let (data, _) = try await performRequestWithRetry(request)
+        for (index, endpoint) in endpoints.enumerated() {
+            var request = URLRequest(url: endpoint)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = encodedBody
 
-        let payload = try JSONDecoder().decode(GuidedStudyProxyResponse.self, from: data)
-        let trimmedReply = payload.replyText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedReply.isEmpty else {
-            throw OpenAIProxyClientError.emptyReply
+            do {
+                let (data, _) = try await performRequestWithRetry(request)
+                let payload = try JSONDecoder().decode(GuidedStudyProxyResponse.self, from: data)
+                let trimmedReply = payload.replyText.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmedReply.isEmpty else {
+                    throw OpenAIProxyClientError.emptyReply
+                }
+                return trimmedReply
+            } catch let error as OpenAIProxyClientError {
+                lastError = error
+                if case .httpError(let statusCode, _) = error, statusCode == 404, index < endpoints.count - 1 {
+                    continue
+                }
+                throw error
+            } catch {
+                lastError = error
+                throw error
+            }
         }
 
-        return trimmedReply
+        throw lastError ?? OpenAIProxyClientError.invalidResponse
     }
 
-    private func endpointURL() -> URL? {
-        guard !baseURL.isEmpty else { return nil }
-        guard let url = URL(string: baseURL) else { return nil }
-        if url.path.lowercased().hasSuffix("/guided-study") {
-            return url
+    private func endpointURLs() -> [URL] {
+        guard !baseURL.isEmpty else { return [] }
+        guard let url = URL(string: baseURL) else { return [] }
+
+        let normalizedURL = normalizedURLWithoutTrailingSlash(url)
+        let path = normalizedURL.path.lowercased()
+        var candidates: [URL] = []
+
+        if path.hasSuffix("/guided-study") {
+            candidates.append(normalizedURL)
+        } else {
+            candidates.append(normalizedURL.appendingPathComponent("guided-study"))
         }
-        return url.appendingPathComponent("guided-study")
+
+        if path.hasSuffix("/api") {
+            let withoutAPI = normalizedURL.deletingLastPathComponent().appendingPathComponent("guided-study")
+            candidates.append(withoutAPI)
+        }
+
+        return deduplicatedURLs(candidates)
+    }
+
+    private func normalizedURLWithoutTrailingSlash(_ url: URL) -> URL {
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        let path = components?.path ?? ""
+        if path.count > 1, path.hasSuffix("/") {
+            components?.path = String(path.dropLast())
+        }
+        return components?.url ?? url
+    }
+
+    private func deduplicatedURLs(_ urls: [URL]) -> [URL] {
+        var seen = Set<String>()
+        var result: [URL] = []
+        for url in urls {
+            let absolute = url.absoluteString
+            if !seen.contains(absolute) {
+                seen.insert(absolute)
+                result.append(url)
+            }
+        }
+        return result
     }
 
     private func performRequestWithRetry(_ request: URLRequest) async throws -> (Data, URLResponse) {
@@ -140,21 +200,10 @@ final class OpenAIProxyClient: AIProvider, @unchecked Sendable {
 
         while attempt <= maxRetries {
             do {
-                #if DEBUG
-                let urlText = request.url?.absoluteString ?? "nil"
-                print("[GuidedStudy][Proxy] Request URL: \(urlText) (attempt \(attempt + 1)/\(maxRetries + 1))")
-                #endif
-
                 let (data, response) = try await urlSession.data(for: request)
                 guard let httpResponse = response as? HTTPURLResponse else {
                     throw OpenAIProxyClientError.invalidResponse
                 }
-
-                #if DEBUG
-                let snippet = String(data: data.prefix(200), encoding: .utf8) ?? "<non-utf8>"
-                print("[GuidedStudy][Proxy] Status: \(httpResponse.statusCode)")
-                print("[GuidedStudy][Proxy] Response snippet: \(snippet)")
-                #endif
 
                 if (200...299).contains(httpResponse.statusCode) {
                     return (data, response)

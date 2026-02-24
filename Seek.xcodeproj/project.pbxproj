@@ -66,6 +66,7 @@
 		B9174B4E2F229F610057C525 /* Seek.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Seek.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B9174B672F22A8EE0057C525 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		B9174B682F22A8EE0057C525 /* SeekApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeekApp.swift; sourceTree = "<group>"; };
+		B9SKT0012F6000000000002 /* Seek.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Seek.storekit; sourceTree = "<group>"; };
 		B93A17832F3187DC0032E9B8 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B93A17872F318D420032E9B8 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		B93A5C742F319F710032E9B8 /* SeekData */ = {isa = PBXFileReference; lastKnownFileType = folder; path = SeekData; sourceTree = "<group>"; };
@@ -150,6 +151,7 @@
 				B949C0132F27F211000A59E5 /* TextsScreen.swift */,
 				B9174B672F22A8EE0057C525 /* ContentView.swift */,
 				B9174B682F22A8EE0057C525 /* SeekApp.swift */,
+				B9SKT0012F6000000000002 /* Seek.storekit */,
 				B9D9830B2F28819E000C601C /* VerseLoader.swift */,
 				B9NEW0012F3AAA010000002 /* SearchManager.swift */,
 				B9NEW0022F3AAA010000002 /* ShareImageGenerator.swift */,

@@ -5,7 +5,6 @@ struct SettingsScreen: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.openURL) private var openURL
     @StateObject private var libraryData = LibraryData.shared
-    @StateObject private var studyStore = StudyStore.shared
     @ObservedObject private var appSettings = AppSettings.shared
     @State private var showClearCacheConfirmation = false
     @State private var cacheSize: String = "Calculating..."
@@ -20,6 +19,9 @@ struct SettingsScreen: View {
     @State private var proxyDebugLog: String = ""
     @State private var isProxyHealthCheckRunning = false
     @State private var isProxyRequestTestRunning = false
+    @State private var forceNotesLocked = false
+    @State private var forceHighlightsLocked = false
+    @State private var forceGuidedStudyLocked = false
     #endif
 
     var body: some View {
@@ -29,7 +31,7 @@ struct SettingsScreen: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Account")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(SeekTheme.textSecondary)
+                        .foregroundColor(Brand.textSecondary)
                         .textCase(.uppercase)
                         .tracking(0.5)
                         .padding(.horizontal, 4)
@@ -38,19 +40,19 @@ struct SettingsScreen: View {
                         HStack {
                             Text("Seek Guided")
                                 .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(SeekTheme.textPrimary)
+                                .foregroundColor(Brand.textPrimary)
 
                             Spacer()
 
                             Text(appState.effectivelyGuided ? "Active" : "Free")
                                 .font(.system(size: 15))
-                                .foregroundColor(appState.effectivelyGuided ? SeekTheme.onAccentText : SeekTheme.textPrimary)
+                                .foregroundColor(appState.effectivelyGuided ? Brand.onAccentText : Brand.textPrimary)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
                                 .background(
                                     appState.effectivelyGuided ?
-                                    SeekTheme.maroonAccent :
-                                    Color(.secondarySystemBackground)
+                                    Brand.primaryAccent :
+                                    Brand.surfaceSecondary
                                 )
                                 .cornerRadius(8)
                         }
@@ -67,191 +69,16 @@ struct SettingsScreen: View {
                                 HStack {
                                     Text("Manage Subscription")
                                         .font(.system(size: 16, weight: .medium))
-                                        .foregroundColor(SeekTheme.maroonAccent)
+                                        .foregroundColor(Brand.primaryAccent)
 
                                     Spacer()
 
                                     Image(systemName: "arrow.up.right")
                                         .font(.system(size: 14))
-                                        .foregroundColor(SeekTheme.maroonAccent)
+                                        .foregroundColor(Brand.primaryAccent)
                                 }
                                 .padding(16)
                             }
-                        }
-                    }
-                    .background(SeekTheme.cardBackground)
-                    .cornerRadius(14)
-                    .shadow(color: SeekTheme.cardShadow, radius: 6, x: 0, y: 2)
-                }
-
-                // Stats Section
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Your Journey")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(SeekTheme.textSecondary)
-                        .textCase(.uppercase)
-                        .tracking(0.5)
-                        .padding(.horizontal, 4)
-
-                    VStack(spacing: 0) {
-                        SettingsStatRow(
-                            label: "Highlights",
-                            value: "\(appState.highlights.count)",
-                            limit: appState.effectivelyGuided ? nil : AppState.maxHighlightsFree
-                        )
-
-                        Divider()
-                            .padding(.leading, 16)
-
-                        SettingsStatRow(
-                            label: "Notes",
-                            value: "\(appState.notes.count)",
-                            limit: appState.effectivelyGuided ? nil : AppState.maxNotesFree
-                        )
-
-                        Divider()
-                            .padding(.leading, 16)
-
-                        SettingsStatRow(
-                            label: "Guided Sessions",
-                            value: "\(studyStore.conversations.count)",
-                            limit: nil
-                        )
-                    }
-                    .background(SeekTheme.cardBackground)
-                    .cornerRadius(14)
-                    .shadow(color: SeekTheme.cardShadow, radius: 6, x: 0, y: 2)
-                }
-
-                // Storage Section
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Storage")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(SeekTheme.textSecondary)
-                        .textCase(.uppercase)
-                        .tracking(0.5)
-                        .padding(.horizontal, 4)
-
-                    VStack(spacing: 0) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Cached Texts")
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundColor(SeekTheme.textPrimary)
-
-                                Text("Texts you've read are saved for offline access")
-                                    .font(.system(size: 13))
-                                    .foregroundColor(SeekTheme.textSecondary)
-                            }
-
-                            Spacer()
-
-                            Text(cacheSize)
-                                .font(.system(size: 13))
-                                .foregroundColor(SeekTheme.textSecondary)
-                        }
-                        .padding(16)
-
-                        Divider()
-                            .padding(.leading, 16)
-
-                        Button {
-                            showClearCacheConfirmation = true
-                        } label: {
-                            HStack {
-                                Text("Clear Cache")
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundColor(SeekTheme.maroonAccent)
-
-                                Spacer()
-
-                                Image(systemName: "trash")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(SeekTheme.maroonAccent)
-                            }
-                            .padding(16)
-                        }
-                    }
-                    .background(SeekTheme.cardBackground)
-                    .cornerRadius(14)
-                    .shadow(color: SeekTheme.cardShadow, radius: 6, x: 0, y: 2)
-                }
-
-                // About Section
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("About")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(SeekTheme.textSecondary)
-                        .textCase(.uppercase)
-                        .tracking(0.5)
-                        .padding(.horizontal, 4)
-
-                    VStack(spacing: 0) {
-                        HStack {
-                            Text("Version")
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(SeekTheme.textPrimary)
-
-                            Spacer()
-
-                            Text(appVersion)
-                                .font(.system(size: 15))
-                                .foregroundColor(SeekTheme.textSecondary)
-                        }
-                        .padding(16)
-                    }
-                    .background(SeekTheme.cardBackground)
-                    .cornerRadius(14)
-                    .shadow(color: SeekTheme.cardShadow, radius: 6, x: 0, y: 2)
-                }
-
-                // Legal Section
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Legal")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(SeekTheme.textSecondary)
-                        .textCase(.uppercase)
-                        .tracking(0.5)
-                        .padding(.horizontal, 4)
-
-                    VStack(spacing: 0) {
-                        Button {
-                            guard let url = URL(string: "https://seek.app/terms") else { return }
-                            openURL(url)
-                        } label: {
-                            HStack {
-                                Text("Terms of Use")
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundColor(SeekTheme.textPrimary)
-
-                                Spacer()
-
-                                Image(systemName: "arrow.up.right")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(SeekTheme.textSecondary)
-                            }
-                            .padding(16)
-                        }
-
-                        Divider()
-                            .padding(.leading, 16)
-
-                        Button {
-                            guard let url = URL(string: "https://seek.app/privacy") else { return }
-                            openURL(url)
-                        } label: {
-                            HStack {
-                                Text("Privacy Policy")
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundColor(SeekTheme.textPrimary)
-
-                                Spacer()
-
-                                Image(systemName: "arrow.up.right")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(SeekTheme.textSecondary)
-                            }
-                            .padding(16)
                         }
                     }
                     .background(SeekTheme.cardBackground)
@@ -263,7 +90,7 @@ struct SettingsScreen: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Preferences")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(SeekTheme.textSecondary)
+                        .foregroundColor(Brand.textSecondary)
                         .textCase(.uppercase)
                         .tracking(0.5)
                         .padding(.horizontal, 4)
@@ -272,7 +99,7 @@ struct SettingsScreen: View {
                         HStack {
                             Text("Appearance")
                                 .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(SeekTheme.textPrimary)
+                                .foregroundColor(Brand.textPrimary)
 
                             Spacer()
 
@@ -292,14 +119,96 @@ struct SettingsScreen: View {
                                 HStack(spacing: 6) {
                                     Text(appSettings.appearanceMode.title)
                                         .font(.system(size: 15))
-                                        .foregroundColor(SeekTheme.textSecondary)
-                                    Image(systemName: "chevron.up.chevron.down")
-                                        .font(.system(size: 11, weight: .semibold))
-                                        .foregroundColor(SeekTheme.textSecondary)
+                                        .foregroundColor(Brand.textSecondary)
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundColor(Brand.textSecondary.opacity(0.65))
                                 }
                             }
                         }
                         .padding(16)
+                    }
+                    .background(SeekTheme.cardBackground)
+                    .cornerRadius(14)
+                    .shadow(color: SeekTheme.cardShadow, radius: 6, x: 0, y: 2)
+                }
+
+                // About Section
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("About")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(Brand.textSecondary)
+                        .textCase(.uppercase)
+                        .tracking(0.5)
+                        .padding(.horizontal, 4)
+
+                    VStack(spacing: 0) {
+                        HStack {
+                            Text("Version")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(Brand.textPrimary)
+
+                            Spacer()
+
+                            Text(appVersion)
+                                .font(.system(size: 15))
+                                .foregroundColor(Brand.textSecondary)
+                        }
+                        .padding(16)
+                    }
+                    .background(SeekTheme.cardBackground)
+                    .cornerRadius(14)
+                    .shadow(color: SeekTheme.cardShadow, radius: 6, x: 0, y: 2)
+                }
+
+                // Legal Section
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Legal")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(Brand.textSecondary)
+                        .textCase(.uppercase)
+                        .tracking(0.5)
+                        .padding(.horizontal, 4)
+
+                    VStack(spacing: 0) {
+                        Button {
+                            guard let url = URL(string: "https://seek.app/terms") else { return }
+                            openURL(url)
+                        } label: {
+                            HStack {
+                                Text("Terms of Use")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(Brand.textPrimary)
+
+                                Spacer()
+
+                                Image(systemName: "arrow.up.right")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(Brand.textSecondary)
+                            }
+                            .padding(16)
+                        }
+
+                        Divider()
+                            .padding(.leading, 16)
+
+                        Button {
+                            guard let url = URL(string: "https://seek.app/privacy") else { return }
+                            openURL(url)
+                        } label: {
+                            HStack {
+                                Text("Privacy Policy")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(Brand.textPrimary)
+
+                                Spacer()
+
+                                Image(systemName: "arrow.up.right")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(Brand.textSecondary)
+                            }
+                            .padding(16)
+                        }
                     }
                     .background(SeekTheme.cardBackground)
                     .cornerRadius(14)
@@ -311,7 +220,7 @@ struct SettingsScreen: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Developer")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(SeekTheme.textSecondary)
+                        .foregroundColor(Brand.textSecondary)
                         .textCase(.uppercase)
                         .tracking(0.5)
                         .padding(.horizontal, 4)
@@ -320,7 +229,7 @@ struct SettingsScreen: View {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("Subscription Status")
                                 .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(SeekTheme.textPrimary)
+                                .foregroundColor(Brand.textPrimary)
 
                             debugStatusRow(label: "Premium", value: entitlementState.isPremium ? "Yes" : "No")
                             debugStatusRow(label: "Source", value: debugFormattedSource(entitlementState.source))
@@ -331,10 +240,10 @@ struct SettingsScreen: View {
                             } label: {
                                 Text("Refresh")
                                     .font(.system(size: 13, weight: .medium))
-                                    .foregroundColor(SeekTheme.onAccentText)
+                                    .foregroundColor(Brand.onAccentText)
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 8)
-                                    .background(SeekTheme.maroonAccent)
+                                    .background(Brand.primaryAccent)
                                     .cornerRadius(8)
                             }
                         }
@@ -346,27 +255,27 @@ struct SettingsScreen: View {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("Streak Status")
                                 .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(SeekTheme.textPrimary)
+                                .foregroundColor(Brand.textPrimary)
 
                             Text("Current Streak: \(streakState?.currentStreak ?? 0)")
                                 .font(.system(size: 13))
-                                .foregroundColor(SeekTheme.textSecondary)
+                                .foregroundColor(Brand.textSecondary)
 
                             Text("Longest Streak: \(streakState?.longestStreak ?? 0)")
                                 .font(.system(size: 13))
-                                .foregroundColor(SeekTheme.textSecondary)
+                                .foregroundColor(Brand.textSecondary)
 
                             Text("Last Engaged Day: \(debugFormattedEngagedDay(streakState?.lastEngagedAt))")
                                 .font(.system(size: 13))
-                                .foregroundColor(SeekTheme.textSecondary)
+                                .foregroundColor(Brand.textSecondary)
 
                             Text("First Engaged Day: \(debugFormattedEngagedDay(streakState?.firstEngagedAt))")
                                 .font(.system(size: 13))
-                                .foregroundColor(SeekTheme.textSecondary)
+                                .foregroundColor(Brand.textSecondary)
 
                             Text("Last Engaged Source: \(streakState?.lastEngagedSource?.rawValue ?? "none")")
                                 .font(.system(size: 13))
-                                .foregroundColor(SeekTheme.textSecondary)
+                                .foregroundColor(Brand.textSecondary)
 
                             HStack(spacing: 10) {
                                 Button {
@@ -376,10 +285,10 @@ struct SettingsScreen: View {
                                 } label: {
                                     Text("Reset Streak")
                                         .font(.system(size: 13, weight: .medium))
-                                        .foregroundColor(SeekTheme.onAccentText)
+                                        .foregroundColor(Brand.onAccentText)
                                         .padding(.horizontal, 12)
                                         .padding(.vertical, 8)
-                                        .background(SeekTheme.maroonAccent)
+                                        .background(Brand.primaryAccent)
                                         .cornerRadius(8)
                                 }
 
@@ -388,12 +297,12 @@ struct SettingsScreen: View {
                                 } label: {
                                     Text("Simulate Yesterday")
                                         .font(.system(size: 13, weight: .medium))
-                                        .foregroundColor(SeekTheme.maroonAccent)
+                                        .foregroundColor(Brand.primaryAccent)
                                         .padding(.horizontal, 12)
                                         .padding(.vertical, 8)
                                         .overlay(
                                             RoundedRectangle(cornerRadius: 8)
-                                                .stroke(SeekTheme.maroonAccent, lineWidth: 1)
+                                                .stroke(Brand.primaryAccent, lineWidth: 1)
                                         )
                                 }
 
@@ -402,12 +311,12 @@ struct SettingsScreen: View {
                                 } label: {
                                     Text("Simulate 3 Days Ago")
                                         .font(.system(size: 13, weight: .medium))
-                                        .foregroundColor(SeekTheme.maroonAccent)
+                                        .foregroundColor(Brand.primaryAccent)
                                         .padding(.horizontal, 12)
                                         .padding(.vertical, 8)
                                         .overlay(
                                             RoundedRectangle(cornerRadius: 8)
-                                                .stroke(SeekTheme.maroonAccent, lineWidth: 1)
+                                                .stroke(Brand.primaryAccent, lineWidth: 1)
                                         )
                                 }
                             }
@@ -420,7 +329,7 @@ struct SettingsScreen: View {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("Guided Study Usage")
                                 .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(SeekTheme.textPrimary)
+                                .foregroundColor(Brand.textPrimary)
 
                             debugStatusRow(label: "Messages Used Today", value: "\(studyUsageState.messagesUsedToday)")
                             debugStatusRow(label: "Day", value: debugFormattedEngagedDay(studyUsageState.day))
@@ -434,10 +343,10 @@ struct SettingsScreen: View {
                                 } label: {
                                     Text("Reset Usage")
                                         .font(.system(size: 13, weight: .medium))
-                                        .foregroundColor(SeekTheme.onAccentText)
+                                        .foregroundColor(Brand.onAccentText)
                                         .padding(.horizontal, 12)
                                         .padding(.vertical, 8)
-                                        .background(SeekTheme.maroonAccent)
+                                        .background(Brand.primaryAccent)
                                         .cornerRadius(8)
                                 }
 
@@ -446,13 +355,114 @@ struct SettingsScreen: View {
                                 } label: {
                                     Text("Refresh")
                                         .font(.system(size: 13, weight: .medium))
-                                        .foregroundColor(SeekTheme.maroonAccent)
+                                        .foregroundColor(Brand.primaryAccent)
                                         .padding(.horizontal, 12)
                                         .padding(.vertical, 8)
                                         .overlay(
                                             RoundedRectangle(cornerRadius: 8)
-                                                .stroke(SeekTheme.maroonAccent, lineWidth: 1)
+                                                .stroke(Brand.primaryAccent, lineWidth: 1)
                                         )
+                                }
+                            }
+                        }
+                        .padding(16)
+
+                        Divider()
+                            .padding(.leading, 16)
+
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Limit Testing")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(Brand.textPrimary)
+
+                            Toggle("Force Notes Locked", isOn: Binding(
+                                get: { forceNotesLocked },
+                                set: { newValue in
+                                    forceNotesLocked = newValue
+                                    UsageLimitManager.shared.setDebugForceNotesLocked(newValue)
+                                }
+                            ))
+                            .tint(Brand.primaryAccent)
+                            .font(.system(size: 13))
+
+                            Toggle("Force Highlights Locked", isOn: Binding(
+                                get: { forceHighlightsLocked },
+                                set: { newValue in
+                                    forceHighlightsLocked = newValue
+                                    UsageLimitManager.shared.setDebugForceHighlightsLocked(newValue)
+                                }
+                            ))
+                            .tint(Brand.primaryAccent)
+                            .font(.system(size: 13))
+
+                            Toggle("Force Guided Study Locked", isOn: Binding(
+                                get: { forceGuidedStudyLocked },
+                                set: { newValue in
+                                    forceGuidedStudyLocked = newValue
+                                    UsageLimitManager.shared.setDebugForceGuidedStudyLocked(newValue)
+                                    refreshStudyUsageStatus()
+                                }
+                            ))
+                            .tint(Brand.primaryAccent)
+                            .font(.system(size: 13))
+
+                            HStack(spacing: 10) {
+                                Button {
+                                    UsageLimitManager.shared.resetNotesLimit()
+                                } label: {
+                                    Text("Reset Notes")
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundColor(Brand.primaryAccent)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 8)
+                                                .stroke(Brand.primaryAccent, lineWidth: 1)
+                                        )
+                                }
+
+                                Button {
+                                    UsageLimitManager.shared.resetHighlightsLimit()
+                                } label: {
+                                    Text("Reset Highlights")
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundColor(Brand.primaryAccent)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 8)
+                                                .stroke(Brand.primaryAccent, lineWidth: 1)
+                                        )
+                                }
+                            }
+
+                            HStack(spacing: 10) {
+                                Button {
+                                    UsageLimitManager.shared.resetGuidedStudyLimit()
+                                    refreshStudyUsageStatus()
+                                } label: {
+                                    Text("Reset Guided Study")
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundColor(Brand.primaryAccent)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 8)
+                                                .stroke(Brand.primaryAccent, lineWidth: 1)
+                                        )
+                                }
+
+                                Button {
+                                    UsageLimitManager.shared.resetAllLimits()
+                                    refreshStudyUsageStatus()
+                                } label: {
+                                    Text("Reset All")
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundColor(Brand.onAccentText)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
+                                        .background(Brand.primaryAccent)
+                                        .cornerRadius(8)
                                 }
                             }
                         }
@@ -472,14 +482,14 @@ struct SettingsScreen: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Sandbox Mode")
                                     .font(.system(size: 16, weight: .medium))
-                                    .foregroundColor(SeekTheme.textPrimary)
+                                    .foregroundColor(Brand.textPrimary)
 
                                 Text("Bypass paywall for testing")
                                     .font(.system(size: 13))
-                                    .foregroundColor(SeekTheme.textSecondary)
+                                    .foregroundColor(Brand.textSecondary)
                             }
                         }
-                        .tint(SeekTheme.maroonAccent)
+                        .tint(Brand.primaryAccent)
                         .padding(16)
 
                         Divider()
@@ -492,14 +502,14 @@ struct SettingsScreen: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Guided Study Mock Provider")
                                     .font(.system(size: 16, weight: .medium))
-                                    .foregroundColor(SeekTheme.textPrimary)
+                                    .foregroundColor(Brand.textPrimary)
 
                                 Text("Use local mock responses instead of live proxy")
                                     .font(.system(size: 13))
-                                    .foregroundColor(SeekTheme.textSecondary)
+                                    .foregroundColor(Brand.textSecondary)
                             }
                         }
-                        .tint(SeekTheme.maroonAccent)
+                        .tint(Brand.primaryAccent)
                         .padding(16)
 
                         Divider()
@@ -508,13 +518,13 @@ struct SettingsScreen: View {
                         HStack {
                             Text("Guided Study Proxy")
                                 .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(SeekTheme.textPrimary)
+                                .foregroundColor(Brand.textPrimary)
 
                             Spacer()
 
                             Text(RemoteConfig.hasConfiguredGuidedStudyProxyBaseURL ? "Configured" : "Not configured")
                                 .font(.system(size: 13))
-                                .foregroundColor(SeekTheme.textSecondary)
+                                .foregroundColor(Brand.textSecondary)
                         }
                         .padding(16)
 
@@ -525,7 +535,7 @@ struct SettingsScreen: View {
                         VStack(alignment: .leading, spacing: 10) {
                             Text(RemoteConfig.guidedStudyProxyBaseURL)
                                 .font(.system(size: 12))
-                                .foregroundColor(SeekTheme.textSecondary)
+                                .foregroundColor(Brand.textSecondary)
                                 .textSelection(.enabled)
 
                             HStack(spacing: 10) {
@@ -534,10 +544,10 @@ struct SettingsScreen: View {
                                 } label: {
                                     Text(isProxyHealthCheckRunning ? "Testing /health..." : "Test /health")
                                         .font(.system(size: 13, weight: .medium))
-                                        .foregroundColor(SeekTheme.onAccentText)
+                                        .foregroundColor(Brand.onAccentText)
                                         .padding(.horizontal, 12)
                                         .padding(.vertical, 8)
-                                        .background(SeekTheme.maroonAccent)
+                                        .background(Brand.primaryAccent)
                                         .cornerRadius(8)
                                 }
                                 .disabled(isProxyHealthCheckRunning || isProxyRequestTestRunning)
@@ -547,12 +557,12 @@ struct SettingsScreen: View {
                                 } label: {
                                     Text(isProxyRequestTestRunning ? "Sending test..." : "Test Guided Study")
                                         .font(.system(size: 13, weight: .medium))
-                                        .foregroundColor(SeekTheme.maroonAccent)
+                                        .foregroundColor(Brand.primaryAccent)
                                         .padding(.horizontal, 12)
                                         .padding(.vertical, 8)
                                         .overlay(
                                             RoundedRectangle(cornerRadius: 8)
-                                                .stroke(SeekTheme.maroonAccent, lineWidth: 1)
+                                                .stroke(Brand.primaryAccent, lineWidth: 1)
                                         )
                                 }
                                 .disabled(isProxyHealthCheckRunning || isProxyRequestTestRunning)
@@ -561,7 +571,7 @@ struct SettingsScreen: View {
                             if !proxyDebugLog.isEmpty {
                                 Text(proxyDebugLog)
                                     .font(.system(size: 12))
-                                    .foregroundColor(SeekTheme.textSecondary)
+                                    .foregroundColor(Brand.textSecondary)
                             }
                         }
                         .padding(16)
@@ -573,13 +583,13 @@ struct SettingsScreen: View {
                         HStack {
                             Text("Data Source")
                                 .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(SeekTheme.textPrimary)
+                                .foregroundColor(Brand.textPrimary)
 
                             Spacer()
 
                             Text(libraryData.loadSource.isEmpty ? "Remote" : libraryData.loadSource)
                                 .font(.system(size: 13))
-                                .foregroundColor(SeekTheme.textSecondary)
+                                .foregroundColor(Brand.textSecondary)
                         }
                         .padding(16)
 
@@ -590,7 +600,7 @@ struct SettingsScreen: View {
                             HStack {
                                 Text("Data Status")
                                     .font(.system(size: 16, weight: .medium))
-                                    .foregroundColor(SeekTheme.textPrimary)
+                                    .foregroundColor(Brand.textPrimary)
                                 Spacer()
                                 if isLoadingDataStatus {
                                     ProgressView()
@@ -601,44 +611,44 @@ struct SettingsScreen: View {
                             if let report = dataStatusReport {
                                 Text("index.json source: \(report.sourceSummary)")
                                     .font(.system(size: 13))
-                                    .foregroundColor(SeekTheme.textSecondary)
+                                    .foregroundColor(Brand.textSecondary)
 
                                 Text("Locations: bundle \(report.hasBundleIndex ? "yes" : "no") • cache \(report.hasCacheIndex ? "yes" : "no") • remote \(report.hasRemoteIndex ? "yes" : "no")")
                                     .font(.system(size: 12))
-                                    .foregroundColor(SeekTheme.textSecondary)
+                                    .foregroundColor(Brand.textSecondary)
 
                                 ForEach(report.scriptureStatuses) { item in
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(item.name)
                                             .font(.system(size: 14, weight: .semibold))
-                                            .foregroundColor(SeekTheme.textPrimary)
+                                            .foregroundColor(Brand.textPrimary)
                                         Text("books \(item.totalBooks), chapters \(item.totalChapters), sample \(item.sampleChapterReference): \(item.sampleChapterSuccess ? "ok" : "failed")")
                                             .font(.system(size: 12))
-                                            .foregroundColor(SeekTheme.textSecondary)
+                                            .foregroundColor(Brand.textSecondary)
                                     }
                                 }
 
                                 Text("Remote URL sanity check")
                                     .font(.system(size: 12, weight: .semibold))
-                                    .foregroundColor(SeekTheme.textPrimary)
+                                    .foregroundColor(Brand.textPrimary)
                                     .padding(.top, 2)
 
                                 Text("index: \(RemoteConfig.indexURL()?.absoluteString ?? "invalid")")
                                     .font(.system(size: 12))
-                                    .foregroundColor(SeekTheme.textSecondary)
+                                    .foregroundColor(Brand.textSecondary)
 
                                 Text("sample: \(RemoteConfig.chapterURL(scriptureId: "quran", bookId: "al-baqara", chapter: 2)?.absoluteString ?? "invalid")")
                                     .font(.system(size: 12))
-                                    .foregroundColor(SeekTheme.textSecondary)
+                                    .foregroundColor(Brand.textSecondary)
                             } else {
                                 Text("No status loaded yet.")
                                     .font(.system(size: 12))
-                                    .foregroundColor(SeekTheme.textSecondary)
+                                    .foregroundColor(Brand.textSecondary)
                             }
 
                             Text("Cache size: \(cacheSize)")
                                 .font(.system(size: 12))
-                                .foregroundColor(SeekTheme.textSecondary)
+                                .foregroundColor(Brand.textSecondary)
 
                             HStack(spacing: 10) {
                                 Button {
@@ -646,10 +656,10 @@ struct SettingsScreen: View {
                                 } label: {
                                     Text("Refresh Data Status")
                                         .font(.system(size: 13, weight: .medium))
-                                        .foregroundColor(SeekTheme.onAccentText)
+                                        .foregroundColor(Brand.onAccentText)
                                         .padding(.horizontal, 12)
                                         .padding(.vertical, 8)
-                                        .background(SeekTheme.maroonAccent)
+                                        .background(Brand.primaryAccent)
                                         .cornerRadius(8)
                                 }
                                 .disabled(isLoadingDataStatus || isPrefetchingTopFive)
@@ -659,12 +669,12 @@ struct SettingsScreen: View {
                                 } label: {
                                     Text(isPrefetchingTopFive ? "Prefetching..." : "Prefetch top-5 now")
                                         .font(.system(size: 13, weight: .medium))
-                                        .foregroundColor(SeekTheme.maroonAccent)
+                                        .foregroundColor(Brand.primaryAccent)
                                         .padding(.horizontal, 12)
                                         .padding(.vertical, 8)
                                         .overlay(
                                             RoundedRectangle(cornerRadius: 8)
-                                                .stroke(SeekTheme.maroonAccent, lineWidth: 1)
+                                                .stroke(Brand.primaryAccent, lineWidth: 1)
                                         )
                                 }
                                 .disabled(isLoadingDataStatus || isPrefetchingTopFive)
@@ -673,7 +683,7 @@ struct SettingsScreen: View {
                             if !prefetchSummary.isEmpty {
                                 Text(prefetchSummary)
                                     .font(.system(size: 12))
-                                    .foregroundColor(SeekTheme.textSecondary)
+                                    .foregroundColor(Brand.textSecondary)
                             }
                         }
                         .padding(16)
@@ -683,6 +693,8 @@ struct SettingsScreen: View {
                     .shadow(color: SeekTheme.cardShadow, radius: 6, x: 0, y: 2)
                 }
                 #endif
+
+                storageSection
             }
             .padding(20)
             .padding(.bottom, 24)
@@ -697,6 +709,7 @@ struct SettingsScreen: View {
             refreshEntitlementStatus()
             refreshStreakStatus()
             refreshStudyUsageStatus()
+            refreshDebugLimitFlags()
             refreshDataStatus()
             #endif
         }
@@ -714,6 +727,61 @@ struct SettingsScreen: View {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
         return "\(version) (\(build))"
+    }
+
+    private var storageSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Storage")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(Brand.textSecondary)
+                .textCase(.uppercase)
+                .tracking(0.5)
+                .padding(.horizontal, 4)
+
+            VStack(spacing: 0) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Cached Texts")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(Brand.textPrimary)
+
+                        Text("Texts you've read are saved for offline access")
+                            .font(.system(size: 13))
+                            .foregroundColor(Brand.textSecondary)
+                    }
+
+                    Spacer()
+
+                    Text(cacheSize)
+                        .font(.system(size: 13))
+                        .foregroundColor(Brand.textSecondary)
+                }
+                .padding(16)
+
+                Divider()
+                    .padding(.leading, 16)
+
+                Button {
+                    showClearCacheConfirmation = true
+                } label: {
+                    HStack {
+                        Text("Clear Cache")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundColor(Brand.destructive.opacity(0.72))
+
+                        Spacer()
+
+                        Image(systemName: "trash")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(Brand.destructive.opacity(0.56))
+                    }
+                    .padding(16)
+                }
+            }
+            .background(SeekTheme.cardBackground)
+            .cornerRadius(14)
+            .shadow(color: SeekTheme.cardShadow, radius: 6, x: 0, y: 2)
+        }
     }
 
     private func updateCacheSize() {
@@ -801,6 +869,12 @@ struct SettingsScreen: View {
         studyUsageState = StudyUsageTracker.shared.currentState()
     }
 
+    private func refreshDebugLimitFlags() {
+        forceNotesLocked = UsageLimitManager.shared.isDebugForceNotesLocked()
+        forceHighlightsLocked = UsageLimitManager.shared.isDebugForceHighlightsLocked()
+        forceGuidedStudyLocked = UsageLimitManager.shared.isDebugForceGuidedStudyLocked()
+    }
+
     private func debugFormattedEntitlementDate(_ date: Date?) -> String {
         guard let date else { return "None" }
         let formatter = DateFormatter()
@@ -830,11 +904,11 @@ struct SettingsScreen: View {
         HStack(alignment: .firstTextBaseline) {
             Text(label)
                 .font(.system(size: 13))
-                .foregroundColor(SeekTheme.textSecondary)
+                .foregroundColor(Brand.textSecondary)
             Spacer()
             Text(value)
                 .font(.system(size: 13, weight: .medium))
-                .foregroundColor(SeekTheme.textPrimary)
+                .foregroundColor(Brand.textPrimary)
         }
     }
 
@@ -873,35 +947,6 @@ struct SettingsScreen: View {
         }
     }
     #endif
-}
-
-// MARK: - Settings Stat Row
-
-private struct SettingsStatRow: View {
-    let label: String
-    let value: String
-    let limit: Int?
-
-    var body: some View {
-        HStack {
-            Text(label)
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(SeekTheme.textPrimary)
-
-            Spacer()
-
-            if let limit = limit {
-                Text("\(value) / \(limit)")
-                    .font(.system(size: 15))
-                    .foregroundColor(SeekTheme.textSecondary)
-            } else {
-                Text(value)
-                    .font(.system(size: 15))
-                    .foregroundColor(SeekTheme.textSecondary)
-            }
-        }
-        .padding(16)
-    }
 }
 
 #Preview {

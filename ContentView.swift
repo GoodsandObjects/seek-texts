@@ -51,6 +51,7 @@ struct ContentView: View {
         }) {
             PaywallView(
                 context: appState.paywallContext,
+                reason: appState.paywallReason,
                 streakDays: StreakStore().load()?.currentStreak ?? 0
             ) {
                 appState.handlePaywallUnlocked()
